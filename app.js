@@ -22,10 +22,22 @@ document.addEventListener('alpine:init', () => {
         timer: { timeLeft: 60 * 60, isRunning: false, intervalId: null },
         config: {
             examTitle: 'KỲ THI KẾT THÚC HỌC PHẦN',
-            subjectName: 'Thực Hành Sinh Học',
-            roomName: 'P.302-A1',
-            examTime: '07:30 - 18/11',
+            subjectName: 'Sinh Học Đại Cương',
+            subjectCode: 'BIO101',
+            roomName: '116',
+            examTime: '07h00 - 08/11/2026',
             durationMinutes: 45,
+            
+            // Các trường thông tin chi tiết cho biểu mẫu A4 Đại học Duy Tân
+            academicYear: '2026-2027',
+            semester: '1',
+            examAttempt: '1',
+            classGroup: 'BIO101',
+            subClass: 'C1',
+            facility: 'K7/25 Quang Trung',
+            examiner1: 'HUỲNH NGỌC THÀNH',
+            examiner2: '',
+
             sections: [
                 { title: 'Tiêu bản tự chọn', maxScore: 5, note: 'Vẽ hình và trình bày' },
                 { title: 'Bài thi chỉ định', maxScore: 5, note: 'Quan sát đặc điểm' }
@@ -83,11 +95,15 @@ document.addEventListener('alpine:init', () => {
         addSection() { configModule.addSection(this); },
         removeSection(idx) { configModule.removeSection(this, idx); },
 
+        // Print & Export A4 Sheet actions
+        printExamSheet() {
+            printModule.printExamSheet(this);
+        },
+
         // Storage & Excel actions
         downloadStudentTemplate() { storageModule.downloadStudentTemplate(); },
         handleStudentExcelUpload(e) { storageModule.handleStudentExcelUpload(this, e); },
         exportToExcelXLSX() { storageModule.exportToExcelXLSX(this); },
-        exportToGoogleSheetsCompatibleFormat() { storageModule.exportToExcelXLSX(this); this.triggerToast("Đã xuất file tương thích Google Sheets!", "success"); },
         
         clearLocalStorageDraft() {
             this.confirmModal = {
