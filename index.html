@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sổ Giám Sát Thi & Đếm Ngược Giờ Thi</title>
+    <title>Sổ Giám Sát Thi & Chấm Điểm Chi Tiết</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome Icons -->
@@ -12,6 +12,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
     <!-- Alpine.js CDN -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- SheetJS (xlsx) for Excel Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <script>
         tailwind.config = {
@@ -38,40 +40,18 @@
     </script>
     <style>
         [x-cloak] { display: none !important; }
-        
-        /* Smooth Custom Scrollbar */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #f1f5f9;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
-        }
-
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         @keyframes pulse-ring {
             0% { transform: scale(0.97); opacity: 0.9; }
             50% { transform: scale(1.03); opacity: 1; }
             100% { transform: scale(0.97); opacity: 0.9; }
         }
-        .timer-warning {
-            animation: pulse-ring 1.5s infinite ease-in-out;
-        }
-
-        /* Hide scrollbars for mobile tabs */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
+        .timer-warning { animation: pulse-ring 1.5s infinite ease-in-out; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col antialiased" x-data="examApp()" x-init="initApp()">
@@ -103,10 +83,9 @@
         </template>
     </div>
 
-    <!-- CUSTOM CONFIRMATION MODAL (Replaces confirm()) -->
+    <!-- CUSTOM CONFIRMATION MODAL -->
     <div x-show="confirmModal.show" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 text-center space-y-4"
-             @click.away="confirmModal.show = false">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 text-center space-y-4" @click.away="confirmModal.show = false">
             <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto text-xl">
                 <i class="fa-solid fa-triangle-exclamation"></i>
             </div>
@@ -115,21 +94,57 @@
                 <p class="text-xs text-slate-500 mt-1" x-text="confirmModal.message"></p>
             </div>
             <div class="flex space-x-2 pt-2">
-                <button @click="confirmModal.show = false" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all">
-                    Hủy Bỏ
-                </button>
-                <button @click="executeConfirmAction()" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs rounded-xl transition-all shadow-md">
-                    Đồng Ý Xóa
-                </button>
+                <button @click="confirmModal.show = false" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all">Hủy Bỏ</button>
+                <button @click="executeConfirmAction()" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs rounded-xl transition-all shadow-md">Đồng Ý</button>
             </div>
         </div>
     </div>
 
-    <!-- TOP HEADER NAVIGATION NAVBAR -->
+    <!-- MODAL: GRADING DETAIL FOR A STUDENT -->
+    <div x-show="showGradingModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4" @click.away="showGradingModal = false">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="text-base font-bold text-slate-900">Chấm Điểm Chi Tiết Thí Sinh</h3>
+                    <p class="text-xs text-slate-500" x-text="activeStudent ? `${activeStudent.mssv} - ${activeStudent.name}` : ''"></p>
+                </div>
+                <button @click="showGradingModal = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <div class="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                <template x-for="(sec, sIdx) in config.sections" :key="sIdx">
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                        <div class="flex justify-between text-xs font-bold text-slate-700">
+                            <span x-text="sec.title"></span>
+                            <span class="text-brand-600" x-text="`(Tối đa: ${sec.maxScore}đ)`"></span>
+                        </div>
+                        <p class="text-[11px] text-slate-400" x-text="sec.note"></p>
+                        <div class="flex items-center space-x-2 pt-1">
+                            <input type="number" step="0.25" min="0" :max="sec.maxScore" 
+                                   x-model.number="activeStudent.scores[sIdx]" 
+                                   @input="calculateTotalScore(activeStudent)"
+                                   class="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-brand-500">
+                            <span class="text-xs font-bold text-slate-600">điểm</span>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <div class="bg-brand-50 p-3 rounded-xl border border-brand-200 flex justify-between items-center">
+                <span class="text-xs font-bold text-brand-900">Tổng điểm bài thi:</span>
+                <span class="text-base font-black font-mono text-brand-700" x-text="(activeStudent ? activeStudent.totalScore : 0) + ' / ' + getTotalPoints() + ' điểm'"></span>
+            </div>
+
+            <div class="flex justify-end space-x-2 pt-2">
+                <button @click="showGradingModal = false" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl shadow-sm">Hoàn Tất & Lưu</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOP HEADER NAVBAR -->
     <header class="bg-slate-900 text-white shadow-md sticky top-0 z-40">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
-                <!-- App Brand & Title -->
                 <div class="flex items-center space-x-3">
                     <div class="bg-brand-600 p-2 rounded-xl text-white shadow-md">
                         <i class="fa-solid fa-clock-rotate-left text-lg sm:text-xl"></i>
@@ -143,15 +158,12 @@
                     </div>
                 </div>
 
-                <!-- Clock & Status Header Badge -->
                 <div class="flex items-center space-x-3 sm:space-x-4">
-                    <!-- Live Real Time Clock -->
                     <div class="text-right border-r border-slate-700 pr-3 sm:pr-4">
                         <div class="text-[10px] sm:text-xs text-slate-400 font-medium">Giờ Hệ Thống</div>
                         <div class="text-xs sm:text-sm font-mono font-bold text-emerald-400" x-text="currentSystemTime">--:--:--</div>
                     </div>
                     
-                    <!-- Quick Timer Badge -->
                     <div class="flex items-center space-x-2 bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-700">
                         <span class="w-2.5 h-2.5 rounded-full" 
                               :class="timer.isRunning ? 'bg-emerald-500 animate-ping' : (timer.timeLeft === 0 ? 'bg-rose-500' : 'bg-amber-500')"></span>
@@ -166,7 +178,6 @@
     <nav class="bg-white border-b border-slate-200 shadow-sm sticky top-16 z-30">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex space-x-1 sm:space-x-6 overflow-x-auto py-2 no-scrollbar">
-                
                 <button @click="activeTab = 'timer'" 
                         :class="activeTab === 'timer' ? 'border-brand-600 text-brand-600 bg-brand-50/50' : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'"
                         class="flex items-center space-x-2 px-3 py-2 border-b-2 font-medium text-xs sm:text-sm rounded-t-lg transition-all whitespace-nowrap">
@@ -186,7 +197,7 @@
                         :class="activeTab === 'students' ? 'border-brand-600 text-brand-600 bg-brand-50/50' : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'"
                         class="flex items-center space-x-2 px-3 py-2 border-b-2 font-medium text-xs sm:text-sm rounded-t-lg transition-all whitespace-nowrap">
                     <i class="fa-solid fa-users text-sm"></i>
-                    <span>📋 Thí Sinh & Điểm Danh</span>
+                    <span>📋 Thí Sinh & Chấm Điểm</span>
                     <span class="px-1.5 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-700 rounded-full" x-text="students.length">0</span>
                 </button>
 
@@ -203,385 +214,139 @@
     <!-- MAIN BODY CONTAINER -->
     <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
-        <!-- ================= TAB 1: COUNTDOWN TIMER & MONITORING ================= -->
-        <div x-show="activeTab === 'timer'" x-cloak transition:enter="transition ease-out duration-200">
+        <!-- TAB 1: COUNTDOWN TIMER -->
+        <div x-show="activeTab === 'timer'" x-cloak>
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-                <!-- LEFT: COUNTDOWN DISPLAY -->
                 <div class="lg:col-span-2 space-y-6">
                     <div class="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-sm text-center relative overflow-hidden">
-                        
-                        <!-- Top status bar inside countdown card -->
                         <div class="flex items-center justify-between mb-4">
                             <span class="text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full"
                                   :class="timer.isRunning ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'">
                                 <i class="fa-solid fa-circle text-[8px] mr-1" :class="timer.isRunning ? 'text-emerald-500 animate-pulse' : 'text-slate-400'"></i>
                                 <span x-text="timer.isRunning ? 'Đang Đếm Ngược Làm Bài' : 'Đang Tạm Dừng / Chờ Thi'"></span>
                             </span>
-
-                            <button @click="toggleFullscreen()" title="Toàn màn hình đếm ngược"
-                                    class="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-2 rounded-lg transition-all">
+                            <button @click="toggleFullscreen()" title="Toàn màn hình" class="text-slate-400 hover:text-slate-700 p-2 rounded-lg">
                                 <i class="fa-solid fa-expand text-lg"></i>
                             </button>
                         </div>
 
-                        <!-- Clock Display -->
                         <div class="py-4 sm:py-8" :class="{'timer-warning text-rose-600': timer.timeLeft <= 300 && timer.timeLeft > 0}">
-                            <div class="font-mono text-5xl sm:text-7xl md:text-8xl font-black tracking-tight text-slate-800 select-none drop-shadow-sm" 
-                                 x-text="formatTime(timer.timeLeft)">
-                                00:00:00
-                            </div>
+                            <div class="font-mono text-5xl sm:text-7xl md:text-8xl font-black tracking-tight text-slate-800 select-none" x-text="formatTime(timer.timeLeft)">00:00</div>
                             <p class="text-xs sm:text-sm font-medium text-slate-500 mt-3">
                                 Tổng thời gian làm bài: <span class="text-slate-800 font-bold" x-text="config.durationMinutes + ' phút'"></span>
                             </p>
                         </div>
 
-                        <!-- Animated Progress Bar -->
                         <div class="w-full bg-slate-100 rounded-full h-4 overflow-hidden mb-6 p-0.5 border border-slate-200">
-                            <div class="h-full rounded-full transition-all duration-1000 ease-linear"
-                                 :class="getProgressColor()"
-                                 :style="`width: ${getRemainingPercentage()}%`">
-                            </div>
+                            <div class="h-full rounded-full transition-all duration-1000 ease-linear" :class="getProgressColor()" :style="`width: ${getRemainingPercentage()}%`"></div>
                         </div>
 
-                        <!-- Action Control Buttons -->
                         <div class="flex flex-wrap items-center justify-center gap-3">
-                            <!-- Play / Pause Button -->
                             <button @click="toggleTimer()" 
-                                    class="px-6 py-3.5 rounded-xl font-bold text-white shadow-md hover:shadow-lg transition-all duration-150 flex items-center space-x-2 text-sm sm:text-base active:scale-95"
+                                    class="px-6 py-3.5 rounded-xl font-bold text-white shadow-md transition-all flex items-center space-x-2 text-sm sm:text-base active:scale-95"
                                     :class="timer.isRunning ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'">
                                 <i class="fa-solid" :class="timer.isRunning ? 'fa-pause' : 'fa-play'"></i>
-                                <span x-text="timer.isRunning ? 'TẠM DỪNG' : (timer.timeLeft < config.durationMinutes * 60 ? 'TIẾP TỤC' : 'BẮT ĐẦU THI')"></span>
+                                <span x-text="timer.isRunning ? 'TẠM DỪNG' : 'BẮT ĐẦU THI'"></span>
                             </button>
-
-                            <!-- Reset Button -->
-                            <button @click="resetTimer()" 
-                                    class="px-5 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition-all flex items-center space-x-2 text-sm sm:text-base active:scale-95 border border-slate-200">
-                                <i class="fa-solid fa-rotate-left"></i>
-                                <span>Đặt Lại</span>
+                            <button @click="resetTimer()" class="px-5 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition-all border border-slate-200">
+                                <i class="fa-solid fa-rotate-left mr-1"></i> Đặt Lại
                             </button>
-
-                            <!-- Quick Add Time Buttons -->
                             <div class="flex space-x-2">
-                                <button @click="addExtraMinutes(5)" 
-                                        class="px-3.5 py-3.5 bg-brand-50 hover:bg-brand-100 text-brand-700 font-semibold rounded-xl text-xs sm:text-sm transition-all border border-brand-200 active:scale-95">
-                                    +5 phút
-                                </button>
-                                <button @click="addExtraMinutes(10)" 
-                                        class="px-3.5 py-3.5 bg-brand-50 hover:bg-brand-100 text-brand-700 font-semibold rounded-xl text-xs sm:text-sm transition-all border border-brand-200 active:scale-95">
-                                    +10 phút
-                                </button>
+                                <button @click="addExtraMinutes(5)" class="px-3.5 py-3.5 bg-brand-50 hover:bg-brand-100 text-brand-700 font-semibold rounded-xl text-xs transition-all border border-brand-200">+5 phút</button>
+                                <button @click="addExtraMinutes(10)" class="px-3.5 py-3.5 bg-brand-50 hover:bg-brand-100 text-brand-700 font-semibold rounded-xl text-xs transition-all border border-brand-200">+10 phút</button>
                             </div>
-                        </div>
-
-                        <!-- Sound Settings Toggle -->
-                        <div class="mt-6 border-t border-slate-100 pt-4 flex flex-wrap items-center justify-center gap-4">
-                            <label class="inline-flex items-center cursor-pointer text-xs font-medium text-slate-600">
-                                <input type="checkbox" x-model="timer.soundEnabled" class="sr-only peer">
-                                <div class="relative w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-600"></div>
-                                <span class="ml-2">Âm thanh chuông báo hết giờ</span>
-                            </label>
-                            <button @click="playBeepSound()" class="text-xs text-brand-600 hover:underline">
-                                <i class="fa-solid fa-volume-high mr-1"></i> Thử âm báo
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Quick Summary Counters -->
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
-                            <div class="text-[11px] text-slate-500 font-semibold uppercase">Tổng Thí Sinh</div>
-                            <div class="text-xl sm:text-2xl font-bold text-slate-800 mt-1" x-text="students.length">0</div>
-                        </div>
-
-                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
-                            <div class="text-[11px] text-emerald-600 font-semibold uppercase">Có Mặt</div>
-                            <div class="text-xl sm:text-2xl font-bold text-emerald-600 mt-1" x-text="getPresentCount()">0</div>
-                        </div>
-
-                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
-                            <div class="text-[11px] text-rose-500 font-semibold uppercase">Vắng Mặt</div>
-                            <div class="text-xl sm:text-2xl font-bold text-rose-600 mt-1" x-text="students.length - getPresentCount()">0</div>
-                        </div>
-
-                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
-                            <div class="text-[11px] text-brand-600 font-semibold uppercase">Đã Gán Đề</div>
-                            <div class="text-xl sm:text-2xl font-bold text-brand-600 mt-1" x-text="getAssignedExamCount()">0</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- RIGHT SIDEBAR: EXAM INFO & LOGS -->
                 <div class="space-y-6">
-                    <!-- Exam Details Card -->
                     <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
                         <h3 class="font-bold text-slate-800 text-xs sm:text-sm uppercase tracking-wide border-b border-slate-100 pb-2 mb-3 flex items-center justify-between">
                             <span><i class="fa-solid fa-circle-info text-brand-500 mr-2"></i> Thông Tin Buổi Thi</span>
                             <button @click="activeTab = 'config'" class="text-xs text-brand-600 hover:underline">Sửa</button>
                         </h3>
-
                         <dl class="space-y-2 text-xs sm:text-sm">
-                            <div class="flex justify-between py-1 border-b border-slate-50">
-                                <dt class="text-slate-500">Môn Thi:</dt>
-                                <dd class="font-semibold text-slate-800 text-right" x-text="config.subjectName || 'Chưa đặt'"></dd>
-                            </div>
-                            <div class="flex justify-between py-1 border-b border-slate-50">
-                                <dt class="text-slate-500">Mã Học Phần:</dt>
-                                <dd class="font-medium text-slate-700 text-right" x-text="config.subjectCode || 'N/A'"></dd>
-                            </div>
-                            <div class="flex justify-between py-1 border-b border-slate-50">
-                                <dt class="text-slate-500">Hình Thức Thi:</dt>
-                                <dd class="font-medium text-slate-700 text-right" x-text="config.examFormat || 'Trắc nghiệm / Tự luận'"></dd>
-                            </div>
-                            <div class="flex justify-between py-1 border-b border-slate-50">
-                                <dt class="text-slate-500">Giám Thị Phụ Trách:</dt>
-                                <dd class="font-medium text-slate-700 text-right" x-text="config.invigilatorName || 'Chưa nhập'"></dd>
-                            </div>
-                            <div class="flex justify-between py-1">
-                                <dt class="text-slate-500">Cấu Trúc Thang Điểm:</dt>
-                                <dd class="font-semibold text-brand-600 text-right" x-text="config.sections.length + ' phần (' + getTotalPoints() + ' điểm)'"></dd>
-                            </div>
+                            <div class="flex justify-between py-1 border-b border-slate-50"><dt class="text-slate-500">Môn Thi:</dt><dd class="font-semibold text-slate-800" x-text="config.subjectName"></dd></div>
+                            <div class="flex justify-between py-1 border-b border-slate-50"><dt class="text-slate-500">Phòng Thi:</dt><dd class="font-medium text-slate-700" x-text="config.roomName"></dd></div>
+                            <div class="flex justify-between py-1"><dt class="text-slate-500">Thang Điểm:</dt><dd class="font-semibold text-brand-600" x-text="getTotalPoints() + ' điểm'"></dd></div>
                         </dl>
                     </div>
 
-                    <!-- Room Log & Incidents -->
-                    <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col h-[320px]">
-                        <h3 class="font-bold text-slate-800 text-xs sm:text-sm uppercase tracking-wide border-b border-slate-100 pb-2 mb-3 flex items-center justify-between">
-                            <span><i class="fa-solid fa-clipboard-list text-amber-500 mr-2"></i> Nhật Ký Phòng Thi</span>
-                            <span class="text-xs text-slate-400" x-text="logs.length + ' mục'"></span>
-                        </h3>
-
-                        <!-- Input form for log -->
+                    <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col h-[280px]">
+                        <h3 class="font-bold text-slate-800 text-xs sm:text-sm uppercase tracking-wide border-b border-slate-100 pb-2 mb-3">Nhật Ký Phòng Thi</h3>
                         <div class="flex space-x-2 mb-3">
-                            <input type="text" x-model="newLogText" @keydown.enter="addLog()"
-                                   placeholder="Nhập sự cố / ghi chú phòng thi..." 
-                                   class="flex-grow px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500">
-                            <button @click="addLog()" 
-                                    class="px-3 py-1.5 bg-slate-800 text-white rounded-lg text-xs font-semibold hover:bg-slate-700 transition-all">
-                                Thêm
-                            </button>
+                            <input type="text" x-model="newLogText" @keydown.enter="addLog()" placeholder="Nhập ghi chú..." class="flex-grow px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none">
+                            <button @click="addLog()" class="px-3 py-1.5 bg-slate-800 text-white rounded-lg text-xs font-semibold">Thêm</button>
                         </div>
-
-                        <!-- Log entries list -->
-                        <div class="flex-grow overflow-y-auto space-y-2 pr-1 text-xs">
+                        <div class="flex-grow overflow-y-auto space-y-2 text-xs">
                             <template x-for="(log, idx) in logs" :key="idx">
-                                <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200 relative group">
-                                    <div class="flex justify-between font-mono text-[10px] text-slate-400 mb-1">
-                                        <span x-text="log.time"></span>
-                                        <button @click="removeLog(idx)" class="text-rose-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <i class="fa-solid fa-xmark"></i>
-                                        </button>
-                                    </div>
+                                <div class="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                                    <div class="font-mono text-[10px] text-slate-400" x-text="log.time"></div>
                                     <p class="text-slate-700 font-medium" x-text="log.text"></p>
-                                </div>
-                            </template>
-                            <template x-if="logs.length === 0">
-                                <div class="text-center py-8 text-slate-400 text-xs italic">
-                                    Chưa có sự cố hoặc ghi chú nào trong buổi thi.
                                 </div>
                             </template>
                         </div>
                     </div>
                 </div>
-
             </div>
         </div>
 
-        <!-- ================= TAB 2: EXAM PICKER & EXAM POOL UPLOAD ================= -->
-        <div x-show="activeTab === 'picker'" x-cloak transition:enter="transition ease-out duration-200">
+        <!-- TAB 2: EXAM PICKER -->
+        <div x-show="activeTab === 'picker'" x-cloak>
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                <!-- LEFT: DRAW ANIMATION & ASSIGNMENT -->
                 <div class="lg:col-span-2 space-y-6">
                     <div class="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-sm text-center">
                         <h2 class="text-lg sm:text-xl font-bold text-slate-800 mb-1">Bốc Thăm Mã Đề Thi Ngẫu Nhiên</h2>
-                        <p class="text-xs text-slate-500 mb-6">Bốc thăm công bằng, tự động gán đề thi cho từng thí sinh</p>
-
-                        <!-- Slot Animation Screen -->
-                        <div class="relative bg-slate-900 border-4 border-slate-800 rounded-2xl p-8 mb-6 shadow-inner text-white flex flex-col items-center justify-center min-h-[220px]">
-                            
-                            <div class="text-center" :class="picker.isSpinning ? 'animate-bounce' : ''">
-                                <span class="text-xs font-semibold text-brand-400 uppercase tracking-widest block mb-2" 
-                                      x-text="picker.isSpinning ? 'ĐANG BỐC THĂM ĐỀ THI...' : 'KẾT QUẢ BỐC THĂM'"></span>
-                                
-                                <div class="text-4xl sm:text-6xl font-black text-amber-400 font-mono tracking-wider transition-all duration-100 py-2 select-none"
-                                     x-text="picker.currentDisplay || 'CHƯA BỐC'">
-                                    --
-                                </div>
-                            </div>
-
-                            <div class="absolute top-3 right-4 text-slate-600 text-[10px] font-mono">
-                                <i class="fa-solid fa-dice mr-1"></i> EXAM-RANDOMIZER-V2
-                            </div>
+                        <div class="relative bg-slate-900 border-4 border-slate-800 rounded-2xl p-8 my-6 text-white flex flex-col items-center justify-center min-h-[200px]">
+                            <div class="text-4xl sm:text-6xl font-black text-amber-400 font-mono" x-text="picker.currentDisplay || 'CHƯA BỐC'">--</div>
                         </div>
-
-                        <!-- Target Student & Settings -->
                         <div class="space-y-4 max-w-lg mx-auto">
-                            <!-- Select Student to Assign -->
-                            <div class="flex items-center space-x-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                                <label class="text-xs font-semibold text-slate-600 whitespace-nowrap pl-2">Gán cho Sinh Viên:</label>
-                                <select x-model="picker.targetStudentId" class="flex-grow text-xs font-semibold bg-white border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-brand-500">
-                                    <option value="">-- Bốc tự do (Không gán trực tiếp) --</option>
-                                    <template x-for="st in students" :key="st.id">
-                                        <option :value="st.id" x-text="`${st.mssv} - ${st.name} ${st.assignedExam ? '(Đã có: ' + st.assignedExam + ')' : ''}`"></option>
-                                    </template>
-                                </select>
-                            </div>
-
-                            <!-- Repeat Rules Toggle -->
-                            <div class="flex items-center justify-center space-x-6 text-xs text-slate-600">
-                                <label class="inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" x-model="picker.preventDuplicates" class="rounded text-brand-600 focus:ring-brand-500">
-                                    <span class="ml-2 font-medium">Không trùng lặp đề đã bốc</span>
-                                </label>
-                            </div>
-
-                            <!-- Spin Draw Button -->
-                            <button @click="startRandomDraw()" 
-                                    :disabled="picker.isSpinning || getAvailableExams().length === 0"
-                                    class="w-full py-4 bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 text-slate-900 font-black rounded-xl text-base sm:text-lg shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center space-x-2 uppercase tracking-wide active:scale-95">
-                                <i class="fa-solid fa-dice text-2xl"></i>
+                            <select x-model="picker.targetStudentId" class="w-full text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl p-3">
+                                <option value="">-- Bốc tự do không gán --</option>
+                                <template x-for="st in students" :key="st.id">
+                                    <option :value="st.id" x-text="`${st.mssv} - ${st.name}`"></option>
+                                </template>
+                            </select>
+                            <button @click="startRandomDraw()" :disabled="picker.isSpinning || getAvailableExams().length === 0" class="w-full py-4 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black rounded-xl text-base shadow-lg uppercase">
                                 <span x-text="picker.isSpinning ? 'Đang Xoay Số...' : 'Bắt Đầu Bốc Đề Thi'"></span>
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- RIGHT: EXAM LIST MANAGEMENT & UPLOAD -->
                 <div class="space-y-6">
-                    <!-- Exam Pool Editor & Upload -->
                     <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm space-y-3">
-                        <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                            <h3 class="font-bold text-slate-800 text-xs sm:text-sm uppercase tracking-wide">
-                                <i class="fa-solid fa-list-check text-brand-500 mr-1.5"></i> Danh Sách Đề Thi
-                            </h3>
-                            <span class="text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full font-bold" 
-                                  x-text="getExamListArray().length + ' Đề'"></span>
-                        </div>
-
-                        <!-- UPLOAD EXAM FILE BUTTON -->
-                        <div class="flex space-x-2">
-                            <label class="flex-grow py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs rounded-lg cursor-pointer transition-all flex items-center justify-center space-x-2 shadow-sm">
-                                <i class="fa-solid fa-file-arrow-up text-amber-400"></i>
-                                <span>Upload File Đề (.TXT / .CSV)</span>
-                                <input type="file" accept=".txt,.csv" class="hidden" @change="handleExamFileUpload($event)">
-                            </label>
-                            <button @click="picker.rawExamList = ''; saveToLocalStorage(); triggerToast('Đã xóa danh sách đề!', 'info')" 
-                                    class="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold rounded-lg border border-rose-200 transition-all">
-                                Xóa
-                            </button>
-                        </div>
-
-                        <p class="text-[11px] text-slate-500">Nhập danh sách mã đề/câu hỏi thủ công (mỗi đề trên 1 dòng):</p>
-                        
-                        <textarea x-model="picker.rawExamList" rows="6" 
-                                  @input="saveToLocalStorage()"
-                                  placeholder="Đề số 01
-Đề số 02
-Đề số 03
-..." 
-                                  class="w-full text-xs font-mono p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none leading-relaxed"></textarea>
-                    </div>
-
-                    <!-- Draw History Log -->
-                    <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col h-[260px]">
-                        <div class="flex justify-between items-center border-b border-slate-100 pb-2 mb-3">
-                            <h3 class="font-bold text-slate-800 text-xs sm:text-sm uppercase tracking-wide">
-                                <i class="fa-solid fa-clock-rotate-left text-purple-500 mr-2"></i> Lịch Sử Bốc Đề
-                            </h3>
-                            <button @click="confirmClearHistory()" class="text-[11px] text-rose-600 hover:underline">Xóa lịch sử</button>
-                        </div>
-
-                        <div class="flex-grow overflow-y-auto space-y-2 text-xs">
-                            <template x-for="(item, idx) in picker.history" :key="idx">
-                                <div class="p-2.5 bg-slate-50 rounded-lg border border-slate-200 flex justify-between items-center">
-                                    <div>
-                                        <div class="font-bold text-amber-600 font-mono text-sm" x-text="item.examCode"></div>
-                                        <div class="text-[10px] text-slate-500" x-text="'Gán: ' + (item.studentName || 'Không chỉ định')"></div>
-                                    </div>
-                                    <span class="text-[10px] font-mono text-slate-400" x-text="item.timestamp"></span>
-                                </div>
-                            </template>
-                            <template x-if="picker.history.length === 0">
-                                <div class="text-center py-8 text-slate-400 text-xs italic">
-                                    Chưa có lượt bốc thăm nào.
-                                </div>
-                            </template>
-                        </div>
+                        <h3 class="font-bold text-slate-800 text-xs uppercase tracking-wide border-b border-slate-100 pb-2">Danh Sách Mã Đề</h3>
+                        <textarea x-model="picker.rawExamList" rows="8" @input="saveToLocalStorage()" class="w-full text-xs font-mono p-3 border border-slate-300 rounded-lg"></textarea>
                     </div>
                 </div>
-
             </div>
         </div>
 
-        <!-- ================= TAB 3: STUDENT MANAGEMENT & ATTENDANCE ================= -->
-        <div x-show="activeTab === 'students'" x-cloak transition:enter="transition ease-out duration-200">
+        <!-- TAB 3: STUDENTS & GRADING -->
+        <div x-show="activeTab === 'students'" x-cloak>
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                
-                <!-- TOP CONTROLS & UPLOAD PANEL -->
                 <div class="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/50 space-y-4">
                     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div>
-                            <h2 class="text-base sm:text-lg font-bold text-slate-800">Danh Sách Thí Sinh & Điểm Danh Buổi Thi</h2>
-                            <p class="text-xs text-slate-500">Quản lý thí sinh, điểm danh, gán/bỏ đề thi và thực hiện thao tác xóa.</p>
+                            <h2 class="text-base sm:text-lg font-bold text-slate-800">Danh Sách Thí Sinh, Điểm Danh & Chấm Điểm</h2>
+                            <p class="text-xs text-slate-500">Quản lý thí sinh, điểm danh, nhập điểm từng phần thi và xuất Excel.</p>
                         </div>
-
-                        <!-- Header Action Buttons -->
                         <div class="flex flex-wrap items-center gap-2">
-                            <!-- Upload Student List -->
-                            <label class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-xl cursor-pointer transition-all flex items-center space-x-1.5 shadow-sm">
-                                <i class="fa-solid fa-file-csv text-sm"></i>
-                                <span>Upload File SV (.CSV/.TXT)</span>
+                            <label class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-xl cursor-pointer shadow-sm">
+                                <i class="fa-solid fa-file-csv mr-1"></i> Upload SV (.CSV/.TXT)
                                 <input type="file" accept=".csv, .txt" class="hidden" @change="handleStudentFileUpload($event)">
                             </label>
-
-                            <!-- Add Manual Student -->
-                            <button @click="showAddStudentModal = true" 
-                                    class="px-3 py-2 bg-brand-600 hover:bg-brand-700 text-white font-medium text-xs rounded-xl transition-all flex items-center space-x-1.5 shadow-sm">
-                                <i class="fa-solid fa-user-plus text-sm"></i>
-                                <span>Thêm Thủ Công</span>
+                            <button @click="showAddStudentModal = true" class="px-3 py-2 bg-brand-600 hover:bg-brand-700 text-white font-medium text-xs rounded-xl shadow-sm">
+                                <i class="fa-solid fa-user-plus mr-1"></i> Thêm Thủ Công
                             </button>
-
-                            <!-- Export CSV -->
-                            <button @click="exportToCSV()" 
-                                    class="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white font-medium text-xs rounded-xl transition-all flex items-center space-x-1.5 shadow-sm">
-                                <i class="fa-solid fa-download text-sm"></i>
-                                <span>Xuất CSV</span>
+                            <button @click="exportToExcelXLSX()" class="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white font-medium text-xs rounded-xl shadow-sm">
+                                <i class="fa-solid fa-file-excel mr-1"></i> Tải Danh Sách & Kết Quả (.XLSX)
                             </button>
-
-                            <!-- Delete All Students Button -->
-                            <button @click="confirmClearAllStudents()" 
-                                    class="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-medium text-xs rounded-xl transition-all"
-                                    title="Xóa toàn bộ danh sách thí sinh">
-                                <i class="fa-solid fa-trash-can mr-1"></i> Xóa Tất Cả
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Search & Filters -->
-                    <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-                        <div class="relative w-full sm:w-72">
-                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
-                            <input type="text" x-model="studentFilter.search" placeholder="Tìm theo SBD, tên hoặc lớp..." 
-                                   class="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                        </div>
-
-                        <div class="flex items-center space-x-2 w-full sm:w-auto overflow-x-auto">
-                            <span class="text-xs font-medium text-slate-500 whitespace-nowrap">Trạng thái:</span>
-                            <button @click="studentFilter.status = 'all'" 
-                                    :class="studentFilter.status === 'all' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border border-slate-200'"
-                                    class="px-2.5 py-1 text-xs rounded-lg font-medium transition-all">Tất cả (<span x-text="students.length"></span>)</button>
-                            <button @click="studentFilter.status = 'present'" 
-                                    :class="studentFilter.status === 'present' ? 'bg-emerald-600 text-white' : 'bg-white text-slate-600 border border-slate-200'"
-                                    class="px-2.5 py-1 text-xs rounded-lg font-medium transition-all">Có mặt (<span x-text="getPresentCount()"></span>)</button>
-                            <button @click="studentFilter.status = 'absent'" 
-                                    :class="studentFilter.status === 'absent' ? 'bg-rose-600 text-white' : 'bg-white text-slate-600 border border-slate-200'"
-                                    class="px-2.5 py-1 text-xs rounded-lg font-medium transition-all">Vắng mặt (<span x-text="students.length - getPresentCount()"></span>)</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- STUDENT LIST TABLE -->
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs text-slate-600">
                         <thead class="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
@@ -589,375 +354,165 @@
                                 <th class="px-4 py-3 text-center w-12">STT</th>
                                 <th class="px-4 py-3">SBD / MSSV</th>
                                 <th class="px-4 py-3">Họ và Tên</th>
-                                <th class="px-4 py-3">Lớp / Nhóm</th>
-                                <th class="px-4 py-3 text-center">Trạng Thái Điểm Danh</th>
-                                <th class="px-4 py-3">Đề Thi Được Gán</th>
-                                <th class="px-4 py-3 text-center w-28">Thao Tác</th>
+                                <th class="px-4 py-3">Lớp</th>
+                                <th class="px-4 py-3 text-center">Điểm Danh</th>
+                                <th class="px-4 py-3">Đề Thi</th>
+                                <th class="px-4 py-3 text-center">Chấm Điểm Từng Phần</th>
+                                <th class="px-4 py-3 text-center font-bold text-brand-700">Tổng Điểm</th>
+                                <th class="px-4 py-3 text-center w-20">Xóa</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 bg-white">
-                            <template x-for="(st, index) in filteredStudents()" :key="st.id">
-                                <tr class="hover:bg-slate-50/80 transition-colors">
-                                    <td class="px-4 py-3 text-center font-mono font-medium text-slate-400" x-text="index + 1"></td>
+                            <template x-for="(st, index) in students" :key="st.id">
+                                <tr class="hover:bg-slate-50">
+                                    <td class="px-4 py-3 text-center font-mono text-slate-400" x-text="index + 1"></td>
                                     <td class="px-4 py-3 font-mono font-bold text-slate-800" x-text="st.mssv"></td>
                                     <td class="px-4 py-3 font-semibold text-slate-800" x-text="st.name"></td>
                                     <td class="px-4 py-3 text-slate-500" x-text="st.className || 'N/A'"></td>
-                                    
-                                    <!-- Attendance Toggle Badge -->
                                     <td class="px-4 py-3 text-center">
-                                        <button @click="toggleAttendance(st)" 
-                                                class="px-3 py-1 rounded-full text-[11px] font-bold transition-all shadow-sm"
-                                                :class="st.isPresent ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-rose-100 text-rose-800 border border-rose-300'">
-                                            <i class="fa-solid" :class="st.isPresent ? 'fa-check mr-1' : 'fa-xmark mr-1'"></i>
-                                            <span x-text="st.isPresent ? 'CÓ MẶT' : 'VẮNG MẶT'"></span>
+                                        <button @click="toggleAttendance(st)" class="px-2.5 py-1 rounded-full text-[11px] font-bold shadow-sm"
+                                                :class="st.isPresent ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'"
+                                                x-text="st.isPresent ? 'CÓ MẶT' : 'VẮNG'">
                                         </button>
                                     </td>
-
-                                    <!-- Assigned Exam Code Badge & Quick Unassign -->
-                                    <td class="px-4 py-3">
-                                        <template x-if="st.assignedExam">
-                                            <div class="inline-flex items-center space-x-1.5 bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-1 rounded-md font-mono font-bold text-xs">
-                                                <span x-text="st.assignedExam"></span>
-                                                <button @click="unassignExam(st)" title="Bỏ gán đề thi này" class="text-amber-600 hover:text-rose-600">
-                                                    <i class="fa-solid fa-circle-xmark text-xs"></i>
-                                                </button>
-                                            </div>
-                                        </template>
-                                        <template x-if="!st.assignedExam">
-                                            <span class="text-slate-400 italic text-[11px]">Chưa bốc đề</span>
-                                        </template>
-                                    </td>
-
-                                    <!-- Actions: Delete Button -->
-                                    <td class="px-4 py-3 text-center space-x-1">
-                                        <button @click="confirmDeleteStudent(st)" 
-                                                class="px-2 py-1 text-rose-600 hover:bg-rose-50 border border-rose-200 rounded text-xs font-medium transition-all"
-                                                title="Xóa sinh viên này">
-                                            <i class="fa-solid fa-trash-can mr-1"></i> Xóa
+                                    <td class="px-4 py-3 font-mono font-bold text-amber-700" x-text="st.assignedExam || 'Chưa gán'"></td>
+                                    <td class="px-4 py-3 text-center">
+                                        <button @click="openGradingModal(st)" class="px-3 py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-700 font-semibold rounded-lg border border-brand-200">
+                                            <i class="fa-solid fa-pen-to-square mr-1"></i> Nhập Điểm Phần
                                         </button>
                                     </td>
-                                </tr>
-                            </template>
-
-                            <template x-if="filteredStudents().length === 0">
-                                <tr>
-                                    <td colspan="7" class="py-12 text-center text-slate-400 italic">
-                                        Chưa có sinh viên nào hoặc không tìm thấy kết quả phù hợp.
+                                    <td class="px-4 py-3 text-center font-black font-mono text-sm text-brand-600" x-text="st.totalScore + ' đ'"></td>
+                                    <td class="px-4 py-3 text-center">
+                                        <button @click="confirmDeleteStudent(st)" class="text-rose-500 hover:text-rose-700"><i class="fa-solid fa-trash-can"></i></button>
                                     </td>
                                 </tr>
                             </template>
                         </tbody>
                     </table>
                 </div>
-
             </div>
         </div>
 
-        <!-- ================= TAB 4: CONFIGURATION & EXAM SECTIONS ================= -->
-        <div x-show="activeTab === 'config'" x-cloak transition:enter="transition ease-out duration-200">
+        <!-- TAB 4: CONFIG -->
+        <div x-show="activeTab === 'config'" x-cloak>
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-                <!-- GENERAL CONFIG -->
                 <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-                    <h2 class="text-base font-bold text-slate-800 border-b border-slate-100 pb-3 flex items-center">
-                        <i class="fa-solid fa-gear text-brand-600 mr-2"></i> Thiết Lập Thông Tin Buổi Thi
-                    </h2>
-
+                    <h2 class="text-base font-bold text-slate-800 border-b border-slate-100 pb-3">Cấu Hình Buổi Thi</h2>
                     <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Tên Kỳ Thi / Đợt Thi:</label>
-                        <input type="text" x-model="config.examTitle" @input="saveToLocalStorage()"
-                               placeholder="Ví dụ: KỲ THI KẾT THÚC HỌC PHẦN" 
-                               class="w-full text-xs p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 font-medium">
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Tên Kỳ Thi:</label>
+                        <input type="text" x-model="config.examTitle" @input="saveToLocalStorage()" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg">
                     </div>
-
                     <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Tên Môn Học:</label>
-                        <input type="text" x-model="config.subjectName" @input="saveToLocalStorage()"
-                               placeholder="Ví dụ: Lập Trình Web Nâng Cao" 
-                               class="w-full text-xs p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 font-medium">
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Môn Học:</label>
+                        <input type="text" x-model="config.subjectName" @input="saveToLocalStorage()" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg">
                     </div>
-
                     <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-700 mb-1">Mã Học Phần:</label>
-                            <input type="text" x-model="config.subjectCode" @input="saveToLocalStorage()"
-                                   placeholder="INT1234" 
-                                   class="w-full text-xs p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500">
-                        </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-700 mb-1">Phòng Thi:</label>
-                            <input type="text" x-model="config.roomName" @input="saveToLocalStorage()"
-                                   placeholder="P.502 - A2" 
-                                   class="w-full text-xs p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500">
+                            <input type="text" x-model="config.roomName" @input="saveToLocalStorage()" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg">
                         </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-semibold text-slate-700 mb-1">Thời Gian (Phút):</label>
-                            <input type="number" min="1" max="360" x-model.number="config.durationMinutes" 
-                                   @change="resetTimer(); saveToLocalStorage()"
-                                   class="w-full text-xs p-2.5 border border-slate-300 rounded-lg font-bold text-brand-600 focus:ring-2 focus:ring-brand-500">
+                            <input type="number" x-model.number="config.durationMinutes" @change="resetTimer(); saveToLocalStorage()" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg font-bold text-brand-600">
                         </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-700 mb-1">Hình Thức Thi:</label>
-                            <input type="text" x-model="config.examFormat" @input="saveToLocalStorage()"
-                                   placeholder="Trắc nghiệm + Tự luận" 
-                                   class="w-full text-xs p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500">
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Họ Tên Giám Thị Phụ Trách:</label>
-                        <input type="text" x-model="config.invigilatorName" @input="saveToLocalStorage()"
-                               placeholder="ThS. Nguyễn Văn A" 
-                               class="w-full text-xs p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500">
-                    </div>
-
-                    <div class="pt-2">
-                        <button @click="loadSampleData()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-300 transition-all">
-                            <i class="fa-solid fa-flask mr-1"></i> Nạp Dữ Liệu Mẫu Thử Nghiệm
-                        </button>
                     </div>
                 </div>
 
-                <!-- SECTIONS & SCORING SYSTEM -->
                 <div class="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
                     <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                        <div>
-                            <h2 class="text-base font-bold text-slate-800">Cấu Trúc Các Phần Thi & Thang Điểm</h2>
-                            <p class="text-xs text-slate-500">Thêm bớt số lượng phần thi và phân bổ điểm số tương ứng.</p>
-                        </div>
-                        <div class="text-right">
-                            <span class="text-xs text-slate-500 font-medium">Tổng Điểm:</span>
-                            <span class="text-lg font-black font-mono ml-1" 
-                                  :class="getTotalPoints() === 10 ? 'text-emerald-600' : 'text-amber-600'" 
-                                  x-text="getTotalPoints() + ' điểm'"></span>
-                        </div>
+                        <h2 class="text-base font-bold text-slate-800">Cấu Trúc Các Phần Thi & Thang Điểm</h2>
+                        <span class="text-base font-black font-mono text-brand-600" x-text="'Tổng: ' + getTotalPoints() + ' điểm'"></span>
                     </div>
-
-                    <!-- Dynamic Sections List -->
                     <div class="space-y-3">
                         <template x-for="(sec, idx) in config.sections" :key="idx">
-                            <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 relative">
-                                <div class="flex items-center justify-between">
-                                    <span class="text-xs font-bold text-brand-700 uppercase tracking-wide" x-text="\`Phần \${idx + 1}\`"></span>
-                                    <button @click="removeSection(idx)" class="text-rose-500 hover:text-rose-700 text-xs font-semibold">
-                                        <i class="fa-solid fa-trash-can mr-1"></i> Xóa
-                                    </button>
+                            <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-xs font-bold text-brand-700" x-text="`Phần ${idx + 1}`"></span>
+                                    <button @click="removeSection(idx)" class="text-rose-500 text-xs font-semibold"><i class="fa-solid fa-trash-can mr-1"></i> Xóa</button>
                                 </div>
-
                                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                    <div class="sm:col-span-2">
-                                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Tên Phần Thi / Nội dung:</label>
-                                        <input type="text" x-model="sec.title" @input="saveToLocalStorage()"
-                                               placeholder="VD: Phần I: Trắc nghiệm lý thuyết" 
-                                               class="w-full text-xs p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500">
-                                    </div>
-                                    <div>
-                                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Điểm Tối Đa:</label>
-                                        <input type="number" step="0.5" min="0" max="10" x-model.number="sec.maxScore" @input="saveToLocalStorage()"
-                                               class="w-full text-xs p-2 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-brand-500">
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <input type="text" x-model="sec.note" @input="saveToLocalStorage()"
-                                           placeholder="Ghi chú (Ví dụ: 15 câu chọn đáp án đúng)" 
-                                           class="w-full text-[11px] p-2 bg-white border border-slate-200 rounded-lg text-slate-600">
+                                    <div class="sm:col-span-2"><input type="text" x-model="sec.title" @input="saveToLocalStorage()" placeholder="Tên phần thi" class="w-full text-xs p-2 border border-slate-300 rounded-lg"></div>
+                                    <div><input type="number" step="0.5" x-model.number="sec.maxScore" @input="saveToLocalStorage()" placeholder="Điểm tối đa" class="w-full text-xs p-2 border border-slate-300 rounded-lg font-bold"></div>
                                 </div>
                             </div>
                         </template>
                     </div>
-
-                    <button @click="addSection()" class="w-full py-2.5 border-2 border-dashed border-slate-300 hover:border-brand-500 hover:bg-brand-50/50 text-slate-600 hover:text-brand-600 font-semibold text-xs rounded-xl transition-all flex items-center justify-center space-x-1">
-                        <i class="fa-solid fa-plus"></i>
-                        <span>Thêm Phần Thi Mới</span>
-                    </button>
+                    <button @click="addSection()" class="w-full py-2.5 border-2 border-dashed border-slate-300 hover:border-brand-500 text-slate-600 font-semibold text-xs rounded-xl">Thêm Phần Thi Mới</button>
                 </div>
-
             </div>
         </div>
-
     </main>
 
-    <!-- FOOTER -->
-    <footer class="bg-white border-t border-slate-200 py-4 mt-auto">
-        <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
-            <p>© 2026 Sổ Giám Sát Thi Online • Sẵn sàng triển khai trên GitHub Pages</p>
-        </div>
-    </footer>
-
-    <!-- MODAL: ADD STUDENT MANUALLY -->
+    <!-- MODAL: ADD STUDENT -->
     <div x-show="showAddStudentModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100" @click.away="showAddStudentModal = false">
-            <h3 class="text-base font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">Thêm Thí Sinh Mới</h3>
-            <div class="space-y-3">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">Mã Thí Sinh / SBD / MSSV (*):</label>
-                    <input type="text" x-model="newStudent.mssv" placeholder="VD: 20110001" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">Họ và Tên (*):</label>
-                    <input type="text" x-model="newStudent.name" placeholder="VD: Nguyễn Văn A" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">Lớp / Nhóm Học Phần:</label>
-                    <input type="text" x-model="newStudent.className" placeholder="VD: CNTT-K16A" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500">
-                </div>
-            </div>
-            <div class="mt-6 flex justify-end space-x-2">
-                <button @click="showAddStudentModal = false" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg">Hủy</button>
-                <button @click="saveManualStudent()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-lg">Lưu Thí Sinh</button>
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-3">
+            <h3 class="text-base font-bold text-slate-800 border-b border-slate-100 pb-2">Thêm Thí Sinh Mới</h3>
+            <div><label class="block text-xs font-semibold text-slate-700 mb-1">Mã Thí Sinh / MSSV (*):</label><input type="text" x-model="newStudent.mssv" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg"></div>
+            <div><label class="block text-xs font-semibold text-slate-700 mb-1">Họ và Tên (*):</label><input type="text" x-model="newStudent.name" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg"></div>
+            <div><label class="block text-xs font-semibold text-slate-700 mb-1">Lớp:</label><input type="text" x-model="newStudent.className" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg"></div>
+            <div class="mt-4 flex justify-end space-x-2">
+                <button @click="showAddStudentModal = false" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg">Hủy</button>
+                <button @click="saveManualStudent()" class="px-4 py-2 bg-brand-600 text-white text-xs font-semibold rounded-lg">Lưu</button>
             </div>
         </div>
     </div>
 
-    <!-- JAVASCRIPT APP STATE & LOGIC -->
+    <!-- SCRIPT APP LOGIC -->
     <script>
         function examApp() {
             return {
                 activeTab: 'timer',
                 currentSystemTime: '',
                 showAddStudentModal: false,
+                showGradingModal: false,
+                activeStudent: null,
                 newLogText: '',
-
-                // Toast Notification array
                 toasts: [],
-
-                // Custom Confirm Modal
-                confirmModal: {
-                    show: false,
-                    title: '',
-                    message: '',
-                    onConfirm: null
-                },
-
-                // Countdown Timer State
-                timer: {
-                    timeLeft: 60 * 60,
-                    isRunning: false,
-                    intervalId: null,
-                    soundEnabled: true,
-                    warned5m: false,
-                    warned1m: false
-                },
-
-                // General Configuration
+                confirmModal: { show: false, title: '', message: '', onConfirm: null },
+                
+                timer: { timeLeft: 60 * 60, isRunning: false, intervalId: null, soundEnabled: true },
                 config: {
                     examTitle: 'KỲ THI KẾT THÚC HỌC PHẦN',
                     subjectName: 'Lập Trình Web & Giao Diện',
-                    subjectCode: 'INT3110',
                     roomName: 'P.302-A1',
                     durationMinutes: 60,
-                    examFormat: 'Trắc nghiệm & Thực hành',
-                    invigilatorName: 'ThS. Nguyễn Văn A',
                     sections: [
-                        { title: 'Phần I: Trắc nghiệm Lý thuyết', maxScore: 4, note: '20 câu trắc nghiệm' },
-                        { title: 'Phần II: Bài tập Thực hành', maxScore: 6, note: 'Lập trình ứng dụng Web' }
+                        { title: 'Phần I: Trắc nghiệm', maxScore: 4, note: '20 câu trắc nghiệm' },
+                        { title: 'Phần II: Thực hành', maxScore: 6, note: 'Lập trình ứng dụng' }
                     ]
                 },
-
-                // Exam Picker State
-                picker: {
-                    rawExamList: "Đề số 01\nĐề số 02\nĐề số 03\nĐề số 04\nĐề số 05",
-                    currentDisplay: "",
-                    isSpinning: false,
-                    targetStudentId: "",
-                    preventDuplicates: true,
-                    history: []
-                },
-
-                // Student List
+                picker: { rawExamList: "Đề số 01\nĐề số 02\nĐề số 03\nĐề số 04\nĐề số 05", currentDisplay: "", isSpinning: false, targetStudentId: "" },
                 students: [],
                 newStudent: { mssv: '', name: '', className: '' },
-                studentFilter: { search: '', status: 'all' },
-
-                // Exam Room Logs
                 logs: [],
 
-                // INITIALIZATION
                 initApp() {
-                    this.updateClock();
-                    setInterval(() => this.updateClock(), 1000);
-
+                    setInterval(() => { this.currentSystemTime = new Date().toLocaleTimeString('vi-VN'); }, 1000);
                     this.loadFromLocalStorage();
-
                     if (!this.timer.timeLeft || this.timer.timeLeft <= 0) {
                         this.timer.timeLeft = (this.config.durationMinutes || 60) * 60;
                     }
                 },
 
-                updateClock() {
-                    const now = new Date();
-                    this.currentSystemTime = now.toLocaleTimeString('vi-VN');
-                },
-
-                // TOAST NOTIFICATIONS
                 triggerToast(message, type = 'info') {
                     const id = Date.now();
                     this.toasts.push({ id, message, type, visible: true });
-                    setTimeout(() => {
-                        this.removeToast(id);
-                    }, 3500);
+                    setTimeout(() => { this.toasts = this.toasts.filter(t => t.id !== id); }, 3500);
                 },
 
-                removeToast(id) {
-                    this.toasts = this.toasts.filter(t => t.id !== id);
-                },
+                removeToast(id) { this.toasts = this.toasts.filter(t => t.id !== id); },
 
-                // CONFIRM MODAL HELPER
-                askConfirm(title, message, callback) {
-                    this.confirmModal.title = title;
-                    this.confirmModal.message = message;
-                    this.confirmModal.onConfirm = callback;
-                    this.confirmModal.show = true;
-                },
-
-                executeConfirmAction() {
-                    if (typeof this.confirmModal.onConfirm === 'function') {
-                        this.confirmModal.onConfirm();
-                    }
-                    this.confirmModal.show = false;
-                },
-
-                // TIMER FUNCTIONS
                 toggleTimer() {
                     if (this.timer.isRunning) {
                         clearInterval(this.timer.intervalId);
                         this.timer.isRunning = false;
-                        this.addLog("Tạm dừng đồng hồ đếm ngược.");
-                        this.triggerToast("Đã tạm dừng tính giờ!", "warning");
+                        this.triggerToast("Đã tạm dừng đồng hồ!", "warning");
                     } else {
-                        if (this.timer.timeLeft <= 0) {
-                            this.timer.timeLeft = (this.config.durationMinutes || 60) * 60;
-                            this.timer.warned5m = false;
-                            this.timer.warned1m = false;
-                        }
                         this.timer.isRunning = true;
-                        this.addLog("Bắt đầu / Tiếp tục đếm ngược.");
                         this.triggerToast("Bắt đầu tính giờ làm bài!", "success");
-
                         this.timer.intervalId = setInterval(() => {
-                            if (this.timer.timeLeft > 0) {
-                                this.timer.timeLeft--;
-                                
-                                // Sound check at 5m and 1m
-                                if (this.timer.soundEnabled) {
-                                    if (this.timer.timeLeft === 300 && !this.timer.warned5m) {
-                                        this.timer.warned5m = true;
-                                        this.playBeepSound(660, 0.4, 2);
-                                        this.triggerToast("Cảnh báo: Chỉ còn 5 phút làm bài!", "warning");
-                                    }
-                                    if (this.timer.timeLeft === 60 && !this.timer.warned1m) {
-                                        this.timer.warned1m = true;
-                                        this.playBeepSound(880, 0.5, 3);
-                                        this.triggerToast("Cảnh báo: Chỉ còn 1 phút làm bài!", "error");
-                                    }
-                                }
-                            } else {
-                                this.onTimeUp();
-                            }
+                            if (this.timer.timeLeft > 0) this.timer.timeLeft--;
+                            else { clearInterval(this.timer.intervalId); this.timer.isRunning = false; this.triggerToast("HẾT GIỜ LÀM BÀI!", "error"); }
                         }, 1000);
                     }
                 },
@@ -966,39 +521,22 @@
                     clearInterval(this.timer.intervalId);
                     this.timer.isRunning = false;
                     this.timer.timeLeft = (this.config.durationMinutes || 60) * 60;
-                    this.timer.warned5m = false;
-                    this.timer.warned1m = false;
-                    this.addLog("Đặt lại đồng hồ đếm ngược.");
                     this.triggerToast("Đã đặt lại đồng hồ thi!", "info");
                 },
 
                 addExtraMinutes(mins) {
                     this.timer.timeLeft += mins * 60;
-                    this.addLog(`Cộng thêm \${mins} phút làm bài.`);
-                    this.triggerToast(`Đã cộng thêm \${mins} phút làm bài!`, "success");
-                },
-
-                onTimeUp() {
-                    clearInterval(this.timer.intervalId);
-                    this.timer.isRunning = false;
-                    if (this.timer.soundEnabled) {
-                        this.playEndChime();
-                    }
-                    this.addLog("HẾT GIỜ LÀM BÀI!");
-                    this.triggerToast("HẾT GIỜ LÀM BÀI!", "error");
+                    this.triggerToast(`Đã cộng thêm ${mins} phút!`, "success");
                 },
 
                 formatTime(seconds) {
-                    const h = Math.floor(seconds / 3600);
-                    const m = Math.floor((seconds % 3600) / 60);
+                    const m = Math.floor(seconds / 60);
                     const s = seconds % 60;
-                    const pad = (n) => String(n).padStart(2, '0');
-                    return h > 0 ? `\${pad(h)}:\${pad(m)}:\${pad(s)}` : `\${pad(m)}:\${pad(s)}`;
+                    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
                 },
 
                 getRemainingPercentage() {
-                    const totalSecs = (this.config.durationMinutes || 60) * 60;
-                    return Math.max(0, Math.min(100, (this.timer.timeLeft / totalSecs) * 100));
+                    return Math.max(0, Math.min(100, (this.timer.timeLeft / ((this.config.durationMinutes || 60) * 60)) * 100));
                 },
 
                 getProgressColor() {
@@ -1008,321 +546,50 @@
                     return 'bg-rose-600';
                 },
 
-                getTimerStatusText() {
-                    if (this.timer.isRunning) return 'Đang chạy';
-                    if (this.timer.timeLeft === 0) return 'Đã hết giờ';
-                    return 'Tạm dừng';
-                },
-
-                playBeepSound(freq = 750, volume = 0.3, repeat = 1) {
-                    try {
-                        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                        for (let i = 0; i < repeat; i++) {
-                            setTimeout(() => {
-                                const osc = ctx.createOscillator();
-                                const gain = ctx.createGain();
-                                osc.type = 'sine';
-                                osc.frequency.setValueAtTime(freq, ctx.currentTime);
-                                gain.gain.setValueAtTime(volume, ctx.currentTime);
-                                osc.connect(gain);
-                                gain.connect(ctx.destination);
-                                osc.start();
-                                osc.stop(ctx.currentTime + 0.2);
-                            }, i * 300);
-                        }
-                    } catch(e) {}
-                },
-
-                playEndChime() {
-                    try {
-                        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                        const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
-                        notes.forEach((freq, idx) => {
-                            setTimeout(() => {
-                                const osc = ctx.createOscillator();
-                                const gain = ctx.createGain();
-                                osc.frequency.setValueAtTime(freq, ctx.currentTime);
-                                gain.gain.setValueAtTime(0.4, ctx.currentTime);
-                                osc.connect(gain);
-                                gain.connect(ctx.destination);
-                                osc.start();
-                                osc.stop(ctx.currentTime + 0.4);
-                            }, idx * 200);
-                        });
-                    } catch(e) {}
-                },
+                getTimerStatusText() { return this.timer.isRunning ? 'Đang chạy' : 'Tạm dừng'; },
 
                 toggleFullscreen() {
-                    if (!document.fullscreenElement) {
-                        document.documentElement.requestFullscreen().catch(() => {});
-                    } else {
-                        if (document.exitFullscreen) document.exitFullscreen();
-                    }
+                    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+                    else if (document.exitFullscreen) document.exitFullscreen();
                 },
 
-                // EXAM POOL & UPLOAD LOGIC
                 getExamListArray() {
-                    if (!this.picker.rawExamList) return [];
-                    return this.picker.rawExamList
-                        .split('\n')
-                        .map(item => item.trim())
-                        .filter(item => item.length > 0);
+                    return this.picker.rawExamList.split('\n').map(i => i.trim()).filter(i => i.length > 0);
                 },
 
-                getAvailableExams() {
-                    const allExams = this.getExamListArray();
-                    if (!this.picker.preventDuplicates) return allExams;
-                    const drawnExams = this.picker.history.map(h => h.examCode);
-                    return allExams.filter(e => !drawnExams.includes(e));
-                },
-
-                handleExamFileUpload(event) {
-                    const file = event.target.files[0];
-                    if (!file) return;
-
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const content = e.target.result;
-                        const lines = content.split(/\r\n|\n/).map(l => l.trim()).filter(l => l.length > 0);
-                        
-                        if (lines.length > 0) {
-                            const newExams = lines.join('\n');
-                            if (this.picker.rawExamList.trim()) {
-                                this.picker.rawExamList += '\n' + newExams;
-                            } else {
-                                this.picker.rawExamList = newExams;
-                            }
-                            this.saveToLocalStorage();
-                            this.triggerToast(`Đã thêm \${lines.length} đề thi từ file!`, 'success');
-                        }
-                    };
-                    reader.readAsText(file);
-                },
+                getAvailableExams() { return this.getExamListArray(); },
 
                 startRandomDraw() {
                     const available = this.getAvailableExams();
-                    if (available.length === 0) {
-                        this.triggerToast("Đã bốc hết tất cả đề thi trong danh sách!", "warning");
-                        return;
-                    }
-
+                    if (available.length === 0) { this.triggerToast("Hết đề thi!", "warning"); return; }
                     this.picker.isSpinning = true;
-                    let counter = 0;
-                    const duration = 1800;
-                    const interval = 70;
-
-                    const spinTimer = setInterval(() => {
-                        const randomIndex = Math.floor(Math.random() * available.length);
-                        this.picker.currentDisplay = available[randomIndex];
-                        counter += interval;
-
-                        if (counter >= duration) {
-                            clearInterval(spinTimer);
-                            this.picker.isSpinning = false;
-                            this.finalizeDraw(this.picker.currentDisplay);
-                        }
-                    }, interval);
-                },
-
-                finalizeDraw(selectedExam) {
-                    let studentName = "";
-                    if (this.picker.targetStudentId) {
-                        const st = this.students.find(s => s.id === this.picker.targetStudentId);
-                        if (st) {
-                            st.assignedExam = selectedExam;
-                            studentName = `\${st.mssv} - \${st.name}`;
-                        }
-                    }
-
-                    this.picker.history.unshift({
-                        examCode: selectedExam,
-                        studentName: studentName || "Không chỉ định",
-                        timestamp: new Date().toLocaleTimeString('vi-VN')
-                    });
-
-                    this.playBeepSound(880, 0.4, 1);
-                    this.addLog(`Bốc đề: \${selectedExam} \${studentName ? '(' + studentName + ')' : ''}`);
-                    this.triggerToast(`Kết quả: \${selectedExam}`, 'success');
-                    this.saveToLocalStorage();
-                    this.picker.targetStudentId = "";
-                },
-
-                confirmClearHistory() {
-                    this.askConfirm(
-                        "Xóa Lịch Sử Bốc Đề",
-                        "Bạn có muốn xóa toàn bộ nhật ký lịch sử bốc đề thi?",
-                        () => {
-                            this.picker.history = [];
-                            this.saveToLocalStorage();
-                            this.triggerToast("Đã xóa lịch sử bốc đề!", "info");
-                        }
-                    );
-                },
-
-                // STUDENT MANAGEMENT & DELETE FUNCTIONS
-                getPresentCount() {
-                    return this.students.filter(s => s.isPresent).length;
-                },
-
-                getAssignedExamCount() {
-                    return this.students.filter(s => s.assignedExam && s.assignedExam.length > 0).length;
-                },
-
-                filteredStudents() {
-                    return this.students.filter(st => {
-                        if (this.studentFilter.status === 'present' && !st.isPresent) return false;
-                        if (this.studentFilter.status === 'absent' && st.isPresent) return false;
-
-                        if (this.studentFilter.search.trim() !== '') {
-                            const q = this.studentFilter.search.toLowerCase();
-                            const matchMssv = st.mssv.toLowerCase().includes(q);
-                            const matchName = st.name.toLowerCase().includes(q);
-                            const matchClass = (st.className || '').toLowerCase().includes(q);
-                            return matchMssv || matchName || matchClass;
-                        }
-                        return true;
-                    });
-                },
-
-                toggleAttendance(st) {
-                    st.isPresent = !st.isPresent;
-                    this.saveToLocalStorage();
-                },
-
-                unassignExam(st) {
-                    st.assignedExam = '';
-                    this.saveToLocalStorage();
-                    this.triggerToast(`Đã bỏ gán đề của thí sinh \${st.name}`, 'info');
-                },
-
-                saveManualStudent() {
-                    if (!this.newStudent.mssv || !this.newStudent.name) {
-                        this.triggerToast("Vui lòng nhập SBD/MSSV và Họ Tên!", "warning");
-                        return;
-                    }
-                    this.students.push({
-                        id: 'ST_' + Date.now(),
-                        mssv: this.newStudent.mssv.trim(),
-                        name: this.newStudent.name.trim(),
-                        className: this.newStudent.className.trim(),
-                        isPresent: true,
-                        assignedExam: ''
-                    });
-                    this.triggerToast(`Đã thêm thí sinh \${this.newStudent.name}`, "success");
-                    this.newStudent = { mssv: '', name: '', className: '' };
-                    this.showAddStudentModal = false;
-                    this.saveToLocalStorage();
-                },
-
-                confirmDeleteStudent(student) {
-                    this.askConfirm(
-                        "Xóa Thí Sinh",
-                        `Bạn có chắc chắn muốn xóa thí sinh "\${student.mssv} - \${student.name}" khỏi danh sách phòng thi?`,
-                        () => {
-                            this.students = this.students.filter(s => s.id !== student.id);
-                            this.saveToLocalStorage();
-                            this.triggerToast(`Đã xóa thí sinh \${student.name}!`, "info");
-                        }
-                    );
-                },
-
-                confirmClearAllStudents() {
-                    if (this.students.length === 0) {
-                        this.triggerToast("Danh sách thí sinh đang trống!", "warning");
-                        return;
-                    }
-                    this.askConfirm(
-                        "Xóa Tất Cả Thí Sinh",
-                        `⚠️ HÀNH ĐỘNG NÀY SẼ XÓA TOÀN BỘ \${this.students.length} THÍ SINH trong danh sách phòng thi. Bạn có chắc muốn tiếp tục?`,
-                        () => {
-                            this.students = [];
-                            this.saveToLocalStorage();
-                            this.triggerToast("Đã làm mới toàn bộ danh sách thí sinh!", "info");
-                        }
-                    );
-                },
-
-                handleStudentFileUpload(event) {
-                    const file = event.target.files[0];
-                    if (!file) return;
-
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const content = e.target.result;
-                        this.parseStudentContent(content);
-                    };
-                    reader.readAsText(file);
-                },
-
-                parseStudentContent(text) {
-                    const lines = text.split(/\r\n|\n/);
                     let count = 0;
-
-                    lines.forEach((line, idx) => {
-                        if (!line.trim()) return;
-                        const parts = line.split(/[,;\t]/).map(p => p.trim().replace(/^"|"$/g, ''));
-                        
-                        if (idx === 0 && (parts[0].toLowerCase().includes('mssv') || parts[0].toLowerCase().includes('stt') || parts[0].toLowerCase().includes('sbd'))) {
-                            return;
+                    const timer = setInterval(() => {
+                        this.picker.currentDisplay = available[Math.floor(Math.random() * available.length)];
+                        count += 70;
+                        if (count >= 1500) {
+                            clearInterval(timer);
+                            this.picker.isSpinning = false;
+                            const drawn = this.picker.currentDisplay;
+                            if (this.picker.targetStudentId) {
+                                const st = this.students.find(s => s.id === this.picker.targetStudentId);
+                                if (st) st.assignedExam = drawn;
+                            }
+                            this.triggerToast(`Đã bốc đề: ${drawn}`, "success");
+                            this.saveToLocalStorage();
                         }
-
-                        if (parts.length >= 2) {
-                            const mssv = parts[0] || `SV\${idx}`;
-                            const name = parts[1] || `Thí sinh \${idx}`;
-                            const className = parts[2] || '';
-
-                            this.students.push({
-                                id: 'ST_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-                                mssv: mssv,
-                                name: name,
-                                className: className,
-                                isPresent: true,
-                                assignedExam: ''
-                            });
-                            count++;
-                        }
-                    });
-
-                    this.addLog(`Đã tải lên \${count} thí sinh từ file.`);
-                    this.saveToLocalStorage();
-                    this.triggerToast(`Đã nhập \${count} thí sinh thành công!`, "success");
+                    }, 70);
                 },
 
-                exportToCSV() {
-                    if (this.students.length === 0) {
-                        this.triggerToast("Chưa có danh sách sinh viên để xuất CSV!", "warning");
-                        return;
-                    }
-
-                    let csvContent = "\uFEFFSTT,Mã Thí Sinh,Họ và Tên,Lớp,Trạng Thái,Đề Thi Được Gán\n";
-                    this.students.forEach((st, idx) => {
-                        const status = st.isPresent ? "Có mặt" : "Vắng mặt";
-                        csvContent += `"\${idx + 1}","\${st.mssv}","\${st.name}","\${st.className || ''}","\${status}","\${st.assignedExam || ''}"\n`;
-                    });
-
-                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.setAttribute('href', url);
-                    link.setAttribute('download', `BaoCao_PhongThi_\${this.config.roomName || 'P1'}.csv`);
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    this.triggerToast("Đã tải về báo cáo CSV thành công!", "success");
+                openGradingModal(st) {
+                    if (!st.scores) st.scores = this.config.sections.map(() => 0);
+                    this.activeStudent = st;
+                    this.showGradingModal = true;
                 },
 
-                // EXAM SECTION CONFIG
-                addSection() {
-                    this.config.sections.push({
-                        title: `Phần \${this.config.sections.length + 1}: Phần thi mới`,
-                        maxScore: 2,
-                        note: ''
-                    });
-                    this.saveToLocalStorage();
-                },
-
-                removeSection(index) {
-                    this.config.sections.splice(index, 1);
+                calculateTotalScore(st) {
+                    if (!st.scores) st.scores = this.config.sections.map(() => 0);
+                    st.totalScore = st.scores.reduce((sum, val) => sum + (Number(val) || 0), 0);
                     this.saveToLocalStorage();
                 },
 
@@ -1330,36 +597,126 @@
                     return this.config.sections.reduce((sum, sec) => sum + (Number(sec.maxScore) || 0), 0);
                 },
 
-                // LOG SYSTEM
-                addLog(text) {
-                    const time = new Date().toLocaleTimeString('vi-VN');
-                    this.logs.unshift({ time, text });
-                    if (this.logs.length > 50) this.logs.pop();
+                addSection() {
+                    this.config.sections.push({ title: 'Phần mới', maxScore: 2, note: '' });
                     this.saveToLocalStorage();
                 },
 
-                removeLog(index) {
-                    this.logs.splice(index, 1);
+                removeSection(idx) {
+                    this.config.sections.splice(idx, 1);
                     this.saveToLocalStorage();
                 },
 
-                // STORAGE
-                saveToLocalStorage() {
-                    const data = {
-                        config: this.config,
-                        picker: {
-                            rawExamList: this.picker.rawExamList,
-                            preventDuplicates: this.picker.preventDuplicates,
-                            history: this.picker.history
-                        },
-                        students: this.students,
-                        logs: this.logs
+                toggleAttendance(st) { st.isPresent = !st.isPresent; this.saveToLocalStorage(); },
+
+                saveManualStudent() {
+                    if (!this.newStudent.mssv || !this.newStudent.name) { this.triggerToast("Nhập đủ MSSV và Tên!", "warning"); return; }
+                    this.students.push({
+                        id: 'ST_' + Date.now(),
+                        mssv: this.newStudent.mssv.trim(),
+                        name: this.newStudent.name.trim(),
+                        className: this.newStudent.className.trim(),
+                        isPresent: true,
+                        assignedExam: '',
+                        scores: this.config.sections.map(() => 0),
+                        totalScore: 0
+                    });
+                    this.newStudent = { mssv: '', name: '', className: '' };
+                    this.showAddStudentModal = false;
+                    this.saveToLocalStorage();
+                    this.triggerToast("Đã thêm thí sinh thành công!", "success");
+                },
+
+                confirmDeleteStudent(st) {
+                    this.confirmModal = {
+                        show: true,
+                        title: "Xóa Thí Sinh",
+                        message: `Xóa thí sinh ${st.name}?`,
+                        onConfirm: () => {
+                            this.students = this.students.filter(s => s.id !== st.id);
+                            this.saveToLocalStorage();
+                            this.triggerToast("Đã xóa thí sinh!", "info");
+                        }
                     };
-                    localStorage.setItem('EXAM_MONITOR_DATA_V2', JSON.stringify(data));
+                },
+
+                executeConfirmAction() {
+                    if (typeof this.confirmModal.onConfirm === 'function') this.confirmModal.onConfirm();
+                    this.confirmModal.show = false;
+                },
+
+                handleStudentFileUpload(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const lines = e.target.result.split(/\r\n|\n/);
+                        let count = 0;
+                        lines.forEach(line => {
+                            if (!line.trim()) return;
+                            const parts = line.split(/[,;\t]/).map(p => p.trim().replace(/^"|"$/g, ''));
+                            if (parts.length >= 2 && !parts[0].toLowerCase().includes('mssv')) {
+                                this.students.push({
+                                    id: 'ST_' + Date.now() + '_' + Math.random().toString(36).substr(2,4),
+                                    mssv: parts[0],
+                                    name: parts[1],
+                                    className: parts[2] || '',
+                                    isPresent: true,
+                                    assignedExam: '',
+                                    scores: this.config.sections.map(() => 0),
+                                    totalScore: 0
+                                });
+                                count++;
+                            }
+                        });
+                        this.saveToLocalStorage();
+                        this.triggerToast(`Đã nhập ${count} thí sinh!`, "success");
+                    };
+                    reader.readAsText(file);
+                },
+
+                exportToExcelXLSX() {
+                    if (this.students.length === 0) { this.triggerToast("Chưa có thí sinh để xuất Excel!", "warning"); return; }
+                    
+                    let data = [];
+                    this.students.forEach((st, idx) => {
+                        let row = {
+                            "STT": idx + 1,
+                            "Mã Thí Sinh": st.mssv,
+                            "Họ và Tên": st.name,
+                            "Lớp": st.className || "",
+                            "Điểm Danh": st.isPresent ? "Có mặt" : "Vắng mặt",
+                            "Đề Thi": st.assignedExam || ""
+                        };
+                        this.config.sections.forEach((sec, sIdx) => {
+                            row[sec.title] = (st.scores && st.scores[sIdx] !== undefined) ? st.scores[sIdx] : 0;
+                        });
+                        row["Tổng Điểm"] = st.totalScore || 0;
+                        data.push(row);
+                    });
+
+                    const worksheet = XLSX.utils.json_to_sheet(data);
+                    const workbook = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(workbook, worksheet, "KetQuaThi");
+                    XLSX.writeFile(workbook, `BangDiem_${this.config.roomName || 'PhongThi'}.xlsx`);
+                    this.triggerToast("Đã tải file Excel thành công!", "success");
+                },
+
+                addLog(text) {
+                    if (!text.trim()) return;
+                    this.logs.unshift({ time: new Date().toLocaleTimeString('vi-VN'), text: text.trim() });
+                    this.newLogText = '';
+                    this.saveToLocalStorage();
+                },
+
+                saveToLocalStorage() {
+                    localStorage.setItem('EXAM_MONITOR_DATA_V3', JSON.stringify({
+                        config: this.config, picker: this.picker, students: this.students, logs: this.logs
+                    }));
                 },
 
                 loadFromLocalStorage() {
-                    const raw = localStorage.getItem('EXAM_MONITOR_DATA_V2');
+                    const raw = localStorage.getItem('EXAM_MONITOR_DATA_V3');
                     if (raw) {
                         try {
                             const parsed = JSON.parse(raw);
@@ -1369,40 +726,6 @@
                             if (parsed.logs) this.logs = parsed.logs;
                         } catch(e) {}
                     }
-                },
-
-                loadSampleData() {
-                    this.askConfirm(
-                        "Tải Dữ Liệu Mẫu",
-                        "Nạp dữ liệu thử nghiệm sẽ thay thế danh sách hiện tại?",
-                        () => {
-                            this.config = {
-                                examTitle: 'KỲ THI KẾT THÚC HỌC PHẦN',
-                                subjectName: 'Lập Trình Web & Giao Diện',
-                                subjectCode: 'INT3110',
-                                roomName: 'P.A2-501',
-                                durationMinutes: 45,
-                                examFormat: 'Thực hành trên máy',
-                                invigilatorName: 'TS. Lê Hoàng B',
-                                sections: [
-                                    { title: 'Phần I: Lý thuyết Kiến thức chung', maxScore: 4, note: '20 câu hỏi trắc nghiệm' },
-                                    { title: 'Phần II: Thực hành Xây dựng App', maxScore: 6, note: 'Lập trình mã nguồn' }
-                                ]
-                            };
-
-                            this.students = [
-                                { id: 'st1', mssv: '21000101', name: 'Nguyễn Văn An', className: 'CNTT-K16A', isPresent: true, assignedExam: 'Đề số 01' },
-                                { id: 'st2', mssv: '21000102', name: 'Trần Thị Bình', className: 'CNTT-K16A', isPresent: true, assignedExam: 'Đề số 03' },
-                                { id: 'st3', mssv: '21000103', name: 'Lê Hoàng Cường', className: 'CNTT-K16B', isPresent: false, assignedExam: '' },
-                                { id: 'st4', mssv: '21000104', name: 'Phạm Minh Đức', className: 'CNTT-K16B', isPresent: true, assignedExam: '' }
-                            ];
-
-                            this.picker.rawExamList = "Đề số 01\nĐề số 02\nĐề số 03\nĐề số 04\nĐề số 05";
-                            this.resetTimer();
-                            this.saveToLocalStorage();
-                            this.triggerToast("Đã tải dữ liệu mẫu thử nghiệm!", "success");
-                        }
-                    );
                 }
             }
         }
