@@ -4,8 +4,11 @@ import { studentModule } from './js/student.module.js';
 import { configModule } from './js/config.module.js';
 import { storageModule } from './js/storage.module.js';
 
-window.examApp = function() {
-    return {
+// Lắng nghe sự kiện Alpine khởi tạo
+document.addEventListener('alpine:init', () => {
+    
+    // Đăng ký component examApp chuẩn theo Alpine 3.x
+    Alpine.data('examApp', () => ({
         activeTab: 'timer',
         currentSystemTime: '',
         showAddStudentModal: false,
@@ -55,7 +58,7 @@ window.examApp = function() {
             else if (document.exitFullscreen) document.exitFullscreen();
         },
 
-        // Timer actions
+        // Timer actions (truyền 'this' để các module thao tác trực tiếp lên Proxy State)
         toggleTimer() { timerModule.toggleTimer(this); },
         resetTimer() { timerModule.resetTimer(this); },
         addExtraMinutes(mins) { timerModule.addExtraMinutes(this, mins); },
@@ -84,22 +87,24 @@ window.examApp = function() {
         handleStudentExcelUpload(e) { storageModule.handleStudentExcelUpload(this, e); },
         exportToExcelXLSX() { storageModule.exportToExcelXLSX(this); },
         exportToGoogleSheetsCompatibleFormat() { storageModule.exportToExcelXLSX(this); this.triggerToast("Đã xuất file tương thích Google Sheets!", "success"); },
+        
         clearLocalStorageDraft() {
             this.confirmModal = {
                 show: true,
                 title: "Xóa Bản Nháp",
-                message: "Bạn có chắc chắn muốn xóa toàn bộ bản nháp không?",
+                message: "Bạn có chắc chắn muốn xóa toàn bộ bản nháp và làm mới không?",
                 onConfirm: () => {
                     localStorage.removeItem('EXAM_MONITOR_DATA_V5');
                     this.students = [];
                     this.logs = [];
-                    this.triggerToast("Đã xóa bản nháp!", "info");
+                    this.triggerToast("Đã xóa bản nháp thành công!", "info");
                 }
             };
         },
         saveToLocalStorage() { storageModule.saveToLocalStorage(this); },
         loadFromLocalStorage() { storageModule.loadFromLocalStorage(this); },
 
+        // Helpers
         getRemainingPercentage() {
             return Math.max(0, Math.min(100, (this.timer.timeLeft / ((this.config.durationMinutes || 45) * 60)) * 100));
         },
@@ -110,5 +115,5 @@ window.examApp = function() {
             return 'bg-rose-600';
         },
         getTimerStatusText() { return this.timer.isRunning ? 'Đang chạy' : 'Tạm dừng'; }
-    }
-};
+    }));
+});
