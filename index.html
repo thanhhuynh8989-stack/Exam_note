@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
     <!-- Alpine.js CDN -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <!-- SheetJS (xlsx) for Excel Export -->
+    <!-- SheetJS (xlsx) for Excel Import/Export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <script>
@@ -333,15 +333,18 @@
                             <p class="text-xs text-slate-500">Quản lý thí sinh, điểm danh, nhập điểm từng phần thi và xuất Excel.</p>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
+                            <button @click="downloadStudentTemplate()" class="px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white font-medium text-xs rounded-xl shadow-sm">
+                                <i class="fa-solid fa-download mr-1"></i> Tải File Mẫu Excel
+                            </button>
                             <label class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-xl cursor-pointer shadow-sm">
-                                <i class="fa-solid fa-file-csv mr-1"></i> Upload SV (.CSV/.TXT)
-                                <input type="file" accept=".csv, .txt" class="hidden" @change="handleStudentFileUpload($event)">
+                                <i class="fa-solid fa-file-excel mr-1"></i> Upload File Excel (.xlsx)
+                                <input type="file" accept=".xlsx, .xls" class="hidden" @change="handleStudentExcelUpload($event)">
                             </label>
                             <button @click="showAddStudentModal = true" class="px-3 py-2 bg-brand-600 hover:bg-brand-700 text-white font-medium text-xs rounded-xl shadow-sm">
                                 <i class="fa-solid fa-user-plus mr-1"></i> Thêm Thủ Công
                             </button>
                             <button @click="exportToExcelXLSX()" class="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white font-medium text-xs rounded-xl shadow-sm">
-                                <i class="fa-solid fa-file-excel mr-1"></i> Tải Danh Sách & Kết Quả (.XLSX)
+                                <i class="fa-solid fa-file-excel mr-1"></i> Tải Kết Quả (.XLSX)
                             </button>
                         </div>
                     </div>
@@ -645,34 +648,60 @@
                     this.confirmModal.show = false;
                 },
 
-                handleStudentFileUpload(event) {
+                downloadStudentTemplate() {
+                    const templateData = [
+                        { "MSSV": "B21DCCN001", "Họ và Tên": "Nguyễn Văn A", "Lớp": "D21CQCN01-V" },
+                        { "MSSV": "B21DCCN002", "Họ và Tên": "Trần Thị B", "Lớp": "D21CQCN01-V" }
+                    ];
+                    const worksheet = XLSX.utils.json_to_sheet(templateData);
+                    const workbook = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(workbook, worksheet, "DanhSachThiSinh");
+                    XLSX.writeFile(workbook, "Mau_Danh_Sach_Thi_Sinh.xlsx");
+                    this.triggerToast("Đã tải file mẫu Excel thành công!", "success");
+                },
+
+                handleStudentExcelUpload(event) {
                     const file = event.target.files[0];
                     if (!file) return;
                     const reader = new FileReader();
                     reader.onload = (e) => {
-                        const lines = e.target.result.split(/\r\n|\n/);
-                        let count = 0;
-                        lines.forEach(line => {
-                            if (!line.trim()) return;
-                            const parts = line.split(/[,;\t]/).map(p => p.trim().replace(/^"|"$/g, ''));
-                            if (parts.length >= 2 && !parts[0].toLowerCase().includes('mssv')) {
-                                this.students.push({
-                                    id: 'ST_' + Date.now() + '_' + Math.random().toString(36).substr(2,4),
-                                    mssv: parts[0],
-                                    name: parts[1],
-                                    className: parts[2] || '',
-                                    isPresent: true,
-                                    assignedExam: '',
-                                    scores: this.config.sections.map(() => 0),
-                                    totalScore: 0
-                                });
-                                count++;
-                            }
-                        });
-                        this.saveToLocalStorage();
-                        this.triggerToast(`Đã nhập ${count} thí sinh!`, "success");
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const firstSheetName = workbook.SheetNames[0];
+                            const worksheet = workbook.Sheets[firstSheetName];
+                            const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+                            let count = 0;
+                            jsonRows.forEach(row => {
+                                // Hỗ trợ nhiều tên cột phổ biến khác nhau
+                                const mssv = String(row["MSSV"] || row["Mã Thí Sinh"] || row["SBD"] || "").trim();
+                                const name = String(row["Họ và Tên"] || row["Họ tên"] || row["Tên"] || "").trim();
+                                const className = String(row["Lớp"] || row["Class"] || "").trim();
+
+                                if (mssv && name) {
+                                    this.students.push({
+                                        id: 'ST_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                                        mssv: mssv,
+                                        name: name,
+                                        className: className,
+                                        isPresent: true,
+                                        assignedExam: '',
+                                        scores: this.config.sections.map(() => 0),
+                                        totalScore: 0
+                                    });
+                                    count++;
+                                }
+                            });
+
+                            this.saveToLocalStorage();
+                            this.triggerToast(`Đã nhập thành công ${count} thí sinh từ file Excel!`, "success");
+                        } catch (err) {
+                            this.triggerToast("Lỗi đọc file Excel. Vui lòng kiểm tra định dạng!", "error");
+                        }
+                        event.target.value = ''; // Reset input
                     };
-                    reader.readAsText(file);
+                    reader.readAsArrayBuffer(file);
                 },
 
                 exportToExcelXLSX() {
@@ -699,7 +728,7 @@
                     const workbook = XLSX.utils.book_new();
                     XLSX.utils.book_append_sheet(workbook, worksheet, "KetQuaThi");
                     XLSX.writeFile(workbook, `BangDiem_${this.config.roomName || 'PhongThi'}.xlsx`);
-                    this.triggerToast("Đã tải file Excel thành công!", "success");
+                    this.triggerToast("Đã tải file Excel kết quả thành công!", "success");
                 },
 
                 addLog(text) {
