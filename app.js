@@ -3,6 +3,7 @@ import { pickerModule } from './js/picker.module.js';
 import { studentModule } from './js/student.module.js';
 import { configModule } from './js/config.module.js';
 import { storageModule } from './js/storage.module.js';
+import { printModule } from './js/print.module.js';
 
 // Lắng nghe sự kiện Alpine khởi tạo
 document.addEventListener('alpine:init', () => {
