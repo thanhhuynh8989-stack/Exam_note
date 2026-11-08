@@ -172,6 +172,11 @@
                     <span class="px-1.5 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-700 rounded-full" x-text="students.length">0</span>
                 </button>
 
+<button @click="printExamSheet()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs rounded-xl shadow-sm transition-all flex items-center space-x-1">
+    <i class="fa-solid fa-print"></i>
+    <span>Xem Trước & In Phiếu A4</span>
+</button>
+
                 <button @click="activeTab = 'integration'" 
                         :class="activeTab === 'integration' ? 'border-brand-600 text-brand-600 bg-brand-50/50' : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'"
                         class="flex items-center space-x-2 px-3 py-2 border-b-2 font-medium text-xs sm:text-sm rounded-t-lg transition-all whitespace-nowrap">
