@@ -28,7 +28,7 @@ document.addEventListener('alpine:init', () => {
             examTime: '07h00 - 08/11/2026',
             durationMinutes: 45,
             
-            // Các trường thông tin chi tiết cho biểu mẫu A4 Đại học Duy Tân
+            // Các trường thông tin biểu mẫu A4 chuẩn Đại học Duy Tân
             academicYear: '2026-2027',
             semester: '1',
             examAttempt: '1',
@@ -71,7 +71,7 @@ document.addEventListener('alpine:init', () => {
             else if (document.exitFullscreen) document.exitFullscreen();
         },
 
-        // Timer actions (truyền 'this' để các module thao tác trực tiếp lên Proxy State)
+        // Timer actions
         toggleTimer() { timerModule.toggleTimer(this); },
         resetTimer() { timerModule.resetTimer(this); },
         addExtraMinutes(mins) { timerModule.addExtraMinutes(this, mins); },
@@ -95,7 +95,7 @@ document.addEventListener('alpine:init', () => {
         addSection() { configModule.addSection(this); },
         removeSection(idx) { configModule.removeSection(this, idx); },
 
-        // Print & Export A4 Sheet actions
+        // Print A4 Sheet action
         printExamSheet() {
             printModule.printExamSheet(this);
         },
