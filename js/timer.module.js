@@ -29,14 +29,32 @@ export const timerModule = {
         app.triggerToast("Đã đặt lại đồng hồ đếm ngược!", "info");
     },
 
-    // Xử lý tăng (+) hoặc giảm (-) phút ngắt giờ làm bài
+    // Tăng/giảm Giờ
+    adjustHours(app, amount) {
+        app.timer.timeLeft = Math.max(0, app.timer.timeLeft + amount * 3600);
+        app.config.durationMinutes = Math.ceil(app.timer.timeLeft / 60);
+        app.saveToLocalStorage();
+        const label = amount > 0 ? `+${amount} giờ` : `${amount} giờ`;
+        app.triggerToast(`Đã điều chỉnh: ${label}`, "info");
+    },
+
+    // Tăng/giảm Phút
+    adjustMinutes(app, amount) {
+        app.timer.timeLeft = Math.max(0, app.timer.timeLeft + amount * 60);
+        app.config.durationMinutes = Math.ceil(app.timer.timeLeft / 60);
+        app.saveToLocalStorage();
+        const label = amount > 0 ? `+${amount} phút` : `${amount} phút`;
+        app.triggerToast(`Đã điều chỉnh: ${label}`, "info");
+    },
+
     addExtraMinutes(app, mins) {
         app.timer.timeLeft = Math.max(0, app.timer.timeLeft + mins * 60);
+        app.config.durationMinutes = Math.ceil(app.timer.timeLeft / 60);
+        app.saveToLocalStorage();
         const actionText = mins > 0 ? `Thêm ${mins} phút` : `Giảm ${Math.abs(mins)} phút`;
         app.triggerToast(`Đã ${actionText} thời gian làm bài!`, "info");
     },
 
-    // Đặt nhanh thời gian làm bài thi (15, 30, 45, 60, 90 phút...)
     setQuickDuration(app, mins) {
         app.config.durationMinutes = mins;
         if (app.timer.intervalId) {
@@ -50,9 +68,14 @@ export const timerModule = {
 
     formatTime(seconds) {
         const s = Math.max(0, seconds || 0);
-        const m = Math.floor(s / 60);
+        const h = Math.floor(s / 3600);
+        const m = Math.floor((s % 3600) / 60);
         const remainingSecs = s % 60;
         const pad = (n) => String(n).padStart(2, '0');
+        
+        if (h > 0) {
+            return `${pad(h)}:${pad(m)}:${pad(remainingSecs)}`;
+        }
         return `${pad(m)}:${pad(remainingSecs)}`;
     },
 
