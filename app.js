@@ -79,6 +79,7 @@ document.addEventListener('alpine:init', () => {
         toggleTimer() { timerModule.toggleTimer(this); },
         resetTimer() { timerModule.resetTimer(this); },
         addExtraMinutes(mins) { timerModule.addExtraMinutes(this, mins); },
+        setQuickDuration(mins) { timerModule.setQuickDuration(this, mins); },
         formatTime(s) { return timerModule.formatTime(s); },
         addLog() { timerModule.addLog(this); },
 
