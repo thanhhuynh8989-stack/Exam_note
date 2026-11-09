@@ -78,6 +78,8 @@ document.addEventListener('alpine:init', () => {
         // Timer actions
         toggleTimer() { timerModule.toggleTimer(this); },
         resetTimer() { timerModule.resetTimer(this); },
+        adjustHours(amount) { timerModule.adjustHours(this, amount); },
+        adjustMinutes(amount) { timerModule.adjustMinutes(this, amount); },
         addExtraMinutes(mins) { timerModule.addExtraMinutes(this, mins); },
         setQuickDuration(mins) { timerModule.setQuickDuration(this, mins); },
         formatTime(s) { return timerModule.formatTime(s); },
