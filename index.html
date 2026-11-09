@@ -111,7 +111,7 @@
                             <template x-if="activeStudent.scores[sIdx] > sec.maxScore">
                                 <p class="text-[11px] font-bold text-rose-600 flex items-center pt-1">
                                     <i class="fa-solid fa-circle-exclamation mr-1"></i>
-                                    Điểm nhập (${activeStudent.scores[sIdx]}đ) vượt quá điểm tối đa (${sec.maxScore}đ)!
+                                    <span x-text="`Điểm nhập (${activeStudent.scores[sIdx]}đ) vượt quá điểm tối đa (${sec.maxScore}đ)!`"></span>
                                 </p>
                             </template>
                         </div>
