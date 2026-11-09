@@ -105,9 +105,20 @@ document.addEventListener('alpine:init', () => {
                 this.triggerToast("Có phần thi nhập vượt quá điểm tối đa, vui lòng kiểm tra lại!", "error");
                 return;
             }
-            this.saveToLocalStorage();
-            this.triggerToast("Đã lưu bảng điểm thành công!", "success");
+        
+            // Tìm thí sinh gốc trong danh sách chính và áp dụng điểm từ bản sao
+            const target = this.students.find(s => s.id === this.targetStudentId || s.id === (this.activeStudent && this.activeStudent.id));
+            if (target) {
+                target.scores = [...this.activeStudent.scores];
+                target.totalScore = this.activeStudent.totalScore;
+                
+                // Chỉ lưu vào LocalStorage khi bấm Hoàn Tất & Lưu hợp lệ
+                this.saveToLocalStorage();
+                this.triggerToast("Đã lưu bảng điểm thành công!", "success");
+            }
+        
             this.showGradingModal = false;
+            this.activeStudent = null;
         },
 
         // Print A4 Sheet action
