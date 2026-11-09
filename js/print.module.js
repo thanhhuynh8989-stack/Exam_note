@@ -189,7 +189,7 @@ export const printModule = {
             <body>
 
                 <div class="preview-toolbar no-print">
-                    <h3>📄 Xem Trước Bản In A4 (Khổ Dọc - Chuẩn ĐH Duy Tân)</h3>
+                    <h3>📄 Xem Trước Bản In Danh Sách Dự Thi</h3>
                     <div>
                         <button class="btn-action" onclick="window.print()">🖨️ In / Xuất PDF</button>
                         <button class="btn-action btn-close" onclick="window.close()">Đóng</button>
