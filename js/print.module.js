@@ -1,5 +1,5 @@
 export const printModule = {
-    // Hàm kích hoạt chế độ xem trước và in ấn chuẩn A4 Ngang theo mẫu ĐH Duy Tân
+    // Hàm kích hoạt chế độ xem trước và in ấn chuẩn A4 Dọc (Portrait) theo mẫu ĐH Duy Tân
     printExamSheet(app) {
         // Tạo cửa sổ/tab mới làm giao diện Preview A4
         const printWindow = window.open('', '_blank');
@@ -24,7 +24,7 @@ export const printModule = {
         if (students.length === 0) {
             studentRowsHTML = `
                 <tr>
-                    <td colspan="13" style="text-align: center; padding: 20px; color: #666; font-style: italic;">
+                    <td colspan="13" style="text-align: center; padding: 15px; color: #666; font-style: italic;">
                         Chưa có dữ liệu sinh viên trong danh sách phòng thi này.
                     </td>
                 </tr>
@@ -36,26 +36,26 @@ export const printModule = {
                 const noteDisplay = isAbsent ? 'Vắng' : (st.note || '');
 
                 studentRowsHTML += `
-                    <tr style="height: 26px;">
+                    <tr style="height: 24px;">
                         <td style="text-align: center;">${idx + 1}</td>
                         <td style="font-family: monospace; font-weight: bold; text-align: center;">${st.mssv || ''}</td>
-                        <td style="text-align: left; padding-left: 5px;">${st.hoLot || ''}</td>
-                        <td style="text-align: left; padding-left: 5px; font-weight: bold;">${st.ten || ''}</td>
-                        <td style="text-align: center;">${khoiLop}</td>
-                        <td style="text-align: center;">${st.className || ''}</td>
+                        <td style="text-align: left; padding-left: 4px;">${st.hoLot || ''}</td>
+                        <td style="text-align: left; padding-left: 4px; font-weight: bold;">${st.ten || ''}</td>
+                        <td style="text-align: center; font-size: 8.5pt;">${khoiLop}</td>
+                        <td style="text-align: center; font-size: 8.5pt;">${st.className || ''}</td>
                         <td style="text-align: center;"></td> <!-- SỐ TỜ -->
                         <td style="text-align: center;"></td> <!-- KÝ TÊN -->
                         <td style="text-align: center;"></td> <!-- Đồ án Cá nhân -->
                         <td style="text-align: center;"></td> <!-- Đồ án nhóm -->
                         <td style="text-align: center; font-weight: bold;">${scoreDisplay}</td> <!-- Kiểm Tra Cuối Kỳ -->
                         <td style="text-align: center;"></td> <!-- CHỮ -->
-                        <td style="text-align: center; font-size: 9pt;">${noteDisplay}</td> <!-- GHI CHÚ -->
+                        <td style="text-align: center; font-size: 8.5pt;">${noteDisplay}</td> <!-- GHI CHÚ -->
                     </tr>
                 `;
             });
         }
 
-        // Xây dựng mã HTML chuẩn A4 Landscape (Khổ ngang) khớp mẫu ảnh
+        // Xây dựng mã HTML chuẩn A4 Portrait (Khổ dọc)
         const htmlContent = `
             <!DOCTYPE html>
             <html lang="vi">
@@ -63,10 +63,10 @@ export const printModule = {
                 <meta charset="UTF-8">
                 <title>DANH SÁCH SINH VIÊN DỰ THI KTHP - ${cfg.subjectName || cfg.subjectCode || 'Môn học'}</title>
                 <style>
-                    /* Định dạng khổ giấy A4 Ngang khi in */
+                    /* Định dạng khổ giấy A4 Dọc (Portrait) khi in */
                     @page {
-                        size: A4 landscape;
-                        margin: 8mm 10mm 8mm 10mm;
+                        size: A4 portrait;
+                        margin: 8mm 6mm;
                     }
                     * {
                         box-sizing: border-box;
@@ -74,7 +74,7 @@ export const printModule = {
                     }
                     body {
                         font-family: 'Times New Roman', Times, serif;
-                        font-size: 10.5pt;
+                        font-size: 10pt;
                         color: #000;
                         line-height: 1.2;
                         margin: 0;
@@ -82,18 +82,18 @@ export const printModule = {
                         background: #525659;
                     }
 
-                    /* Khung trang giấy A4 Ngang trên màn hình Preview */
+                    /* Khung trang giấy A4 Dọc trên màn hình Preview */
                     .page-container {
-                        width: 297mm;
-                        min-height: 210mm;
-                        padding: 10mm 12mm;
+                        width: 210mm;
+                        min-height: 297mm;
+                        padding: 10mm 8mm;
                         margin: 10mm auto;
                         background: #ffffff;
                         box-shadow: 0 0 15px rgba(0,0,0,0.3);
                         position: relative;
                     }
 
-                    /* Ẩn bớt hiệu ứng màn hình khi bấm nút in */
+                    /* Khi bấm lệnh in */
                     @media print {
                         body { background: none; }
                         .page-container {
@@ -145,7 +145,7 @@ export const printModule = {
                         margin-bottom: 6px;
                     }
                     .header-table td {
-                        padding: 2px 0;
+                        padding: 1.5px 0;
                         vertical-align: middle;
                     }
                     .txt-center { text-align: center; }
@@ -153,7 +153,7 @@ export const printModule = {
                     .bold { font-weight: bold; }
                     .uppercase { text-transform: uppercase; }
 
-                    /* Bảng danh sách thí sinh 13 cột */
+                    /* Bảng danh sách thí sinh 13 cột chuẩn khổ dọc */
                     .student-table {
                         width: 100%;
                         border-collapse: collapse;
@@ -162,8 +162,8 @@ export const printModule = {
                     }
                     .student-table th, .student-table td {
                         border: 1px solid #000;
-                        padding: 4px 2px;
-                        font-size: 9.5pt;
+                        padding: 3px 1px;
+                        font-size: 8.5pt;
                     }
                     .student-table th {
                         background-color: #ffffff;
@@ -173,7 +173,7 @@ export const printModule = {
 
                     /* Chân trang và chữ ký */
                     .footer-summary {
-                        font-size: 10pt;
+                        font-size: 9.5pt;
                         font-style: italic;
                         margin-top: 6px;
                         margin-bottom: 12px;
@@ -183,22 +183,22 @@ export const printModule = {
                         border-collapse: collapse;
                         text-align: center;
                         font-weight: bold;
-                        font-size: 10.5pt;
+                        font-size: 10pt;
                     }
                     .signature-table td {
                         width: 33.33%;
                         vertical-align: top;
-                        padding: 4px;
+                        padding: 2px;
                     }
                     .sig-space {
-                        height: 55px;
+                        height: 50px;
                     }
                 </style>
             </head>
             <body>
 
                 <div class="preview-toolbar no-print">
-                    <h3>📄 Xem Trước Bản In A4 (Khổ Ngang - Chuẩn ĐH Duy Tân)</h3>
+                    <h3>📄 Xem Trước Bản In A4 (Khổ Dọc - Chuẩn ĐH Duy Tân)</h3>
                     <div>
                         <button class="btn-action" onclick="window.print()">🖨️ In / Xuất PDF</button>
                         <button class="btn-action btn-close" onclick="window.close()">Đóng</button>
@@ -211,15 +211,15 @@ export const printModule = {
                     <!-- HEADER 4 DÒNG CHUẨN ĐẠI HỌC DUY TÂN -->
                     <table class="header-table">
                         <tr>
-                            <td style="width: 28%;" class="txt-center">BỘ GIÁO DỤC & ĐÀO TẠO</td>
-                            <td style="width: 54%; font-size: 12pt;" class="txt-center bold uppercase">
+                            <td style="width: 32%;" class="txt-center">BỘ GIÁO DỤC & ĐÀO TẠO</td>
+                            <td style="width: 50%; font-size: 11pt;" class="txt-center bold uppercase">
                                 DANH SÁCH SINH VIÊN DỰ THI KTHP * NH: ${cfg.academicYear || '2026-2027'}
                             </td>
                             <td style="width: 18%;" class="txt-right bold">Số TC : ${cfg.credits || '1'}</td>
                         </tr>
                         <tr>
                             <td class="txt-center bold uppercase">ĐẠI HỌC DUY TÂN</td>
-                            <td class="txt-center bold font-size: 11pt;">
+                            <td class="txt-center bold" style="font-size: 10.5pt;">
                                 KHỐI LỚP: &nbsp;&nbsp;&nbsp;&nbsp; ${khoiLop}
                             </td>
                             <td class="txt-right bold">Học kỳ : ${cfg.semester || '1'}</td>
@@ -230,34 +230,34 @@ export const printModule = {
                             <td class="txt-right bold">Lần thi : ${cfg.examAttempt || '1'}</td>
                         </tr>
                         <tr>
-                            <td colspan="3" style="padding-top: 4px;">
-                                <i>Thời gian:</i> &nbsp;&nbsp;&nbsp;&nbsp; <b>${cfg.examTime || ''}</b> &nbsp;&nbsp;&nbsp;&nbsp;
-                                - <i>Phòng:</i> &nbsp;&nbsp;&nbsp;&nbsp; <b>${cfg.roomName || ''}</b> &nbsp;&nbsp;&nbsp;&nbsp;
+                            <td colspan="3" style="padding-top: 3px;">
+                                <i>Thời gian:</i> &nbsp;&nbsp; <b>${cfg.examTime || ''}</b> &nbsp;&nbsp;&nbsp;&nbsp;
+                                - <i>Phòng:</i> &nbsp;&nbsp; <b>${cfg.roomName || ''}</b> &nbsp;&nbsp;&nbsp;&nbsp;
                                 - <i>Cơ sở:</i> <b>${cfg.facility || ''}</b>
                             </td>
                         </tr>
                     </table>
 
-                    <!-- BẢNG DANH SÁCH 13 CỘT (CHIA NHỎ CỘT ĐIỂM THI KTHP) -->
+                    <!-- BẢNG DANH SÁCH 13 CỘT (CĂN CHỈNH TỶ LỆ DỌC A4) -->
                     <table class="student-table">
                         <thead>
                             <tr>
-                                <th rowspan="2" style="width: 32px;">STT</th>
-                                <th rowspan="2" style="width: 95px;">MSV</th>
-                                <th rowspan="2" style="width: 140px;">HỌ VÀ</th>
-                                <th rowspan="2" style="width: 65px;">TÊN</th>
-                                <th rowspan="2" style="width: 90px;">LỚP MÔN HỌC</th>
-                                <th rowspan="2" style="width: 80px;">LỚP SINH HOẠT</th>
-                                <th rowspan="2" style="width: 40px;">SỐ TỜ</th>
-                                <th rowspan="2" style="width: 65px;">KÝ TÊN</th>
+                                <th rowspan="2" style="width: 24px;">STT</th>
+                                <th rowspan="2" style="width: 78px;">MSV</th>
+                                <th rowspan="2" style="width: 110px;">HỌ VÀ</th>
+                                <th rowspan="2" style="width: 50px;">TÊN</th>
+                                <th rowspan="2" style="width: 65px;">LỚP MÔN HỌC</th>
+                                <th rowspan="2" style="width: 60px;">LỚP SINH HOẠT</th>
+                                <th rowspan="2" style="width: 28px;">SỐ TỜ</th>
+                                <th rowspan="2" style="width: 50px;">KÝ TÊN</th>
                                 <th colspan="4">ĐIỂM THI KTHP</th>
-                                <th rowspan="2" style="width: 75px;">GHI CHÚ</th>
+                                <th rowspan="2" style="width: 55px;">GHI CHÚ</th>
                             </tr>
                             <tr>
-                                <th style="width: 45px; font-size: 8.5pt;">Đồ án Cá nhân</th>
-                                <th style="width: 45px; font-size: 8.5pt;">Đồ án nhóm</th>
-                                <th style="width: 55px; font-size: 8.5pt;">Kiểm Tra Cuối Kỳ</th>
-                                <th style="width: 50px; font-size: 8.5pt;">CHỮ</th>
+                                <th style="width: 32px; font-size: 7.5pt;">Đồ án Cá nhân</th>
+                                <th style="width: 32px; font-size: 7.5pt;">Đồ án nhóm</th>
+                                <th style="width: 38px; font-size: 7.5pt;">Kiểm Tra Cuối Kỳ</th>
+                                <th style="width: 34px; font-size: 7.5pt;">CHỮ</th>
                             </tr>
                         </thead>
                         <tbody>
