@@ -41,7 +41,7 @@ export const printModule = {
                         <td style="text-align: center;"></td> <!-- KÝ TÊN -->
                         <td style="text-align: center;"></td> <!-- Đồ án Cá nhân -->
                         <td style="text-align: center;"></td> <!-- Đồ án nhóm -->
-                        <td style="text-align: center;"></td> <!-- Kiểm Tra Cuối Kỳ (Không điền điểm) -->
+                        <td style="text-align: center;"></td> <!-- Kiểm Tra Cuối Kỳ -->
                         <td style="text-align: center;"></td> <!-- CHỮ -->
                         <td style="text-align: center; font-size: 8.5pt;">${noteDisplay}</td> <!-- GHI CHÚ -->
                     </tr>
@@ -221,11 +221,12 @@ export const printModule = {
                             <td class="col-right bold">Học kỳ : ${cfg.semester || '1'}</td>
                         </tr>
                         <tr>
-                            <!-- Căn giữa cột 1, cho phép tự động xuống dòng nếu tên môn quá dài -->
-                            <td style="text-align: center; white-space: normal; word-break: break-word;" class="bold">
+                            <!-- Gộp 2 ô đầu dòng 3 (Colspan 2) và căn giữa MÔN & MÃ MÔN -->
+                            <td colspan="2" class="col-center bold" style="text-align: center; white-space: normal; word-break: break-word;">
                                 MÔN : <span style="font-weight: normal;">${cfg.subjectName || ''}</span>
+                                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                                MÃ MÔN : ${cfg.subjectCode || ''}
                             </td>
-                            <td class="col-center bold">MÃ MÔN : ${cfg.subjectCode || ''}</td>
                             <td class="col-right bold">Lần thi : ${cfg.examAttempt || '1'}</td>
                         </tr>
                         <tr>
