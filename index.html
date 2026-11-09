@@ -19,7 +19,7 @@
 
     <!-- 1. Gọi app.js (chuẩn module) LÊN TRƯỚC -->
     <script type="module" src="./app.js"></script>
-    <!-- 2. Gọi Alpine.js SAU để đảm bảo app.js đã lắng nghe xong sự kiện -->
+    <!-- 2. Gọi Alpine.js SAU -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 
@@ -85,27 +85,27 @@
                     <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
                         <div class="flex justify-between text-xs font-bold text-slate-700">
                             <span x-text="sec.title"></span>
-                            <span class="text-brand-600" x-text="`(Tối đa: ${sec.maxScore}đ)`"></span>
+                            <span class="text-blue-600" x-text="`(Tối đa: ${sec.maxScore}đ)`"></span>
                         </div>
                         <p class="text-[11px] text-slate-400" x-text="sec.note"></p>
                         <div class="flex items-center space-x-2 pt-1">
                             <input type="number" step="0.25" min="0" :max="sec.maxScore" 
                                    x-model.number="activeStudent.scores[sIdx]" 
                                    @input="calculateTotalScore(activeStudent)"
-                                   class="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-brand-500">
+                                   class="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-blue-500">
                             <span class="text-xs font-bold text-slate-600">điểm</span>
                         </div>
                     </div>
                 </template>
             </div>
 
-            <div class="bg-brand-50 p-3 rounded-xl border border-brand-200 flex justify-between items-center">
-                <span class="text-xs font-bold text-brand-900">Tổng điểm bài thi:</span>
-                <span class="text-base font-black font-mono text-brand-700" x-text="(activeStudent ? activeStudent.totalScore : 0) + ' / ' + getTotalPoints() + ' điểm'"></span>
+            <div class="bg-blue-50 p-3 rounded-xl border border-blue-200 flex justify-between items-center">
+                <span class="text-xs font-bold text-blue-900">Tổng điểm bài thi:</span>
+                <span class="text-base font-black font-mono text-blue-700" x-text="(activeStudent ? activeStudent.totalScore : 0) + ' / ' + getTotalPoints() + ' điểm'"></span>
             </div>
 
             <div class="flex justify-end space-x-2 pt-2">
-                <button @click="showGradingModal = false" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl shadow-sm">Hoàn Tất & Lưu</button>
+                <button @click="showGradingModal = false" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-sm">Hoàn Tất & Lưu</button>
             </div>
         </div>
     </div>
@@ -115,7 +115,7 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
                 <div class="flex items-center space-x-3">
-                    <div class="bg-brand-600 p-2 rounded-xl text-white shadow-md">
+                    <div class="bg-blue-600 p-2 rounded-xl text-white shadow-md">
                         <i class="fa-solid fa-clock-rotate-left text-lg sm:text-xl"></i>
                     </div>
                     <div>
@@ -148,14 +148,14 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex space-x-1 sm:space-x-6 overflow-x-auto py-2 no-scrollbar">
                 <button @click="activeTab = 'timer'" 
-                        :class="activeTab === 'timer' ? 'border-brand-600 text-brand-600 bg-brand-50/50' : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'"
+                        :class="activeTab === 'timer' ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'"
                         class="flex items-center space-x-2 px-3 py-2 border-b-2 font-medium text-xs sm:text-sm rounded-t-lg transition-all whitespace-nowrap">
                     <i class="fa-solid fa-stopwatch text-sm"></i>
                     <span>⏱️ Đếm Ngược</span>
                 </button>
 
                 <button @click="activeTab = 'picker'" 
-                        :class="activeTab === 'picker' ? 'border-brand-600 text-brand-600 bg-brand-50/50' : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'"
+                        :class="activeTab === 'picker' ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'"
                         class="flex items-center space-x-2 px-3 py-2 border-b-2 font-medium text-xs sm:text-sm rounded-t-lg transition-all whitespace-nowrap">
                     <i class="fa-solid fa-dice-five text-sm"></i>
                     <span>🎲 Bốc Đề Thi</span>
@@ -163,7 +163,7 @@
                 </button>
 
                 <button @click="activeTab = 'students'" 
-                        :class="activeTab === 'students' ? 'border-brand-600 text-brand-600 bg-brand-50/50' : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'"
+                        :class="activeTab === 'students' ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'"
                         class="flex items-center space-x-2 px-3 py-2 border-b-2 font-medium text-xs sm:text-sm rounded-t-lg transition-all whitespace-nowrap">
                     <i class="fa-solid fa-users text-sm"></i>
                     <span>📋 Thí Sinh & Chấm Điểm</span>
@@ -171,7 +171,7 @@
                 </button>
 
                 <button @click="activeTab = 'config'" 
-                        :class="activeTab === 'config' ? 'border-brand-600 text-brand-600 bg-brand-50/50' : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'"
+                        :class="activeTab === 'config' ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'"
                         class="flex items-center space-x-2 px-3 py-2 border-b-2 font-medium text-xs sm:text-sm rounded-t-lg transition-all whitespace-nowrap">
                     <i class="fa-solid fa-sliders text-sm"></i>
                     <span>⚙️ Cấu Hình Thi</span>
@@ -221,8 +221,8 @@
                                 <i class="fa-solid fa-rotate-left mr-1"></i> Đặt Lại
                             </button>
                             <div class="flex space-x-2">
-                                <button @click="addExtraMinutes(5)" class="px-3.5 py-3.5 bg-brand-50 hover:bg-brand-100 text-brand-700 font-semibold rounded-xl text-xs transition-all border border-brand-200">+5 phút</button>
-                                <button @click="addExtraMinutes(10)" class="px-3.5 py-3.5 bg-brand-50 hover:bg-brand-100 text-brand-700 font-semibold rounded-xl text-xs transition-all border border-brand-200">+10 phút</button>
+                                <button @click="addExtraMinutes(5)" class="px-3.5 py-3.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-xl text-xs transition-all border border-blue-200">+5 phút</button>
+                                <button @click="addExtraMinutes(10)" class="px-3.5 py-3.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-xl text-xs transition-all border border-blue-200">+10 phút</button>
                             </div>
                         </div>
                     </div>
@@ -231,14 +231,14 @@
                 <div class="space-y-6">
                     <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
                         <h3 class="font-bold text-slate-800 text-xs sm:text-sm uppercase tracking-wide border-b border-slate-100 pb-2 mb-3 flex items-center justify-between">
-                            <span><i class="fa-solid fa-circle-info text-brand-500 mr-2"></i> Thông Tin Buổi Thi</span>
-                            <button @click="activeTab = 'config'" class="text-xs text-brand-600 hover:underline">Sửa</button>
+                            <span><i class="fa-solid fa-circle-info text-blue-500 mr-2"></i> Thông Tin Buổi Thi</span>
+                            <button @click="activeTab = 'config'" class="text-xs text-blue-600 hover:underline">Sửa</button>
                         </h3>
                         <dl class="space-y-2 text-xs sm:text-sm">
                             <div class="flex justify-between py-1 border-b border-slate-50"><dt class="text-slate-500">Môn Thi:</dt><dd class="font-semibold text-slate-800" x-text="config.subjectName"></dd></div>
                             <div class="flex justify-between py-1 border-b border-slate-50"><dt class="text-slate-500">Phòng Thi:</dt><dd class="font-medium text-slate-700" x-text="config.roomName"></dd></div>
                             <div class="flex justify-between py-1 border-b border-slate-50"><dt class="text-slate-500">Giờ Thi:</dt><dd class="font-bold text-amber-600" x-text="config.examTime || 'Chưa đặt'"></dd></div>
-                            <div class="flex justify-between py-1"><dt class="text-slate-500">Thang Điểm:</dt><dd class="font-semibold text-brand-600" x-text="getTotalPoints() + ' điểm'"></dd></div>
+                            <div class="flex justify-between py-1"><dt class="text-slate-500">Thang Điểm:</dt><dd class="font-semibold text-blue-600" x-text="getTotalPoints() + ' điểm'"></dd></div>
                         </dl>
                     </div>
 
@@ -303,16 +303,16 @@
                             <p class="text-xs text-slate-500">Họ và tên chia làm 2 cột (Họ lót & Tên). Dữ liệu tự động lưu bản nháp an toàn.</p>
                         </div>
                         
-                        <!-- HAMBURGER DROPDOWN MENU TÁC VỤ (Đã sửa lỗi hiển thị & gom toàn bộ nút) -->
+                        <!-- NÚT BẤM / MENU TÁC VỤ ĐÃ ĐƯỢC TỐI ƯU HIỂN THỊ RÕ RÀNG -->
                         <div class="relative" x-data="{ openMenu: false }">
-                            <button @click="openMenu = !openMenu" class="px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-2">
+                            <button @click="openMenu = !openMenu" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-2">
                                 <i class="fa-solid fa-bars text-sm"></i>
                                 <span>Tác Vụ Thí Sinh & In Ấn</span>
                                 <i class="fa-solid fa-chevron-down text-[10px] ml-1"></i>
                             </button>
 
                             <div x-show="openMenu" @click.away="openMenu = false" x-cloak 
-                                 class="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-200 py-2 z-50 space-y-1">
+                                 class="absolute right-0 mt-2 w-64 bg-white text-slate-800 rounded-2xl shadow-2xl border border-slate-200 py-2 z-50 space-y-1">
                                 
                                 <button @click="printExamSheet(); openMenu = false" class="w-full text-left px-4 py-2.5 text-xs text-indigo-700 hover:bg-indigo-50 flex items-center space-x-3 font-bold transition-all">
                                     <i class="fa-solid fa-print text-sm w-4 text-center"></i>
@@ -361,7 +361,7 @@
                                 <th class="px-4 py-3 text-center">Điểm Danh</th>
                                 <th class="px-4 py-3">Đề Thi</th>
                                 <th class="px-4 py-3 text-center">Chấm Điểm Từng Phần</th>
-                                <th class="px-4 py-3 text-center font-bold text-brand-700">Tổng Điểm</th>
+                                <th class="px-4 py-3 text-center font-bold text-blue-700">Tổng Điểm</th>
                                 <th class="px-4 py-3 text-center w-20">Xóa</th>
                             </tr>
                         </thead>
@@ -381,11 +381,11 @@
                                     </td>
                                     <td class="px-4 py-3 font-mono font-bold text-amber-700" x-text="st.assignedExam || 'Chưa gán'"></td>
                                     <td class="px-4 py-3 text-center">
-                                        <button @click="openGradingModal(st)" class="px-3 py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-700 font-semibold rounded-lg border border-brand-200">
+                                        <button @click="openGradingModal(st)" class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-lg border border-blue-200">
                                             <i class="fa-solid fa-pen-to-square mr-1"></i> Nhập Điểm Phần
                                         </button>
                                     </td>
-                                    <td class="px-4 py-3 text-center font-black font-mono text-sm text-brand-600" x-text="st.totalScore + ' đ'"></td>
+                                    <td class="px-4 py-3 text-center font-black font-mono text-sm text-blue-600" x-text="st.totalScore + ' đ'"></td>
                                     <td class="px-4 py-3 text-center">
                                         <button @click="confirmDeleteStudent(st)" class="text-rose-500 hover:text-rose-700"><i class="fa-solid fa-trash-can"></i></button>
                                     </td>
@@ -397,7 +397,7 @@
             </div>
         </div>
 
-        <!-- TAB 4: CONFIG (Bổ sung đầy đủ các trường thông tin chuẩn Đại học Duy Tân) -->
+        <!-- TAB 4: CONFIG -->
         <div x-show="activeTab === 'config'" x-cloak>
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
@@ -429,7 +429,7 @@
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-700 mb-1">Thời Lượng Làm Bài (Phút):</label>
-                            <input type="number" x-model.number="config.durationMinutes" @change="resetTimer(); saveToLocalStorage()" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg font-bold text-brand-600">
+                            <input type="number" x-model.number="config.durationMinutes" @change="resetTimer(); saveToLocalStorage()" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg font-bold text-blue-600">
                         </div>
                     </div>
 
@@ -481,13 +481,13 @@
                 <div class="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
                     <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                         <h2 class="text-base font-bold text-slate-800">Cấu Trúc Các Phần Thi & Thang Điểm</h2>
-                        <span class="text-base font-black font-mono text-brand-600" x-text="'Tổng: ' + getTotalPoints() + ' điểm'"></span>
+                        <span class="text-base font-black font-mono text-blue-600" x-text="'Tổng: ' + getTotalPoints() + ' điểm'"></span>
                     </div>
                     <div class="space-y-3">
                         <template x-for="(sec, idx) in config.sections" :key="idx">
                             <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                                 <div class="flex justify-between items-center">
-                                    <span class="text-xs font-bold text-brand-700" x-text="`Phần ${idx + 1}`"></span>
+                                    <span class="text-xs font-bold text-blue-700" x-text="`Phần ${idx + 1}`"></span>
                                     <button @click="removeSection(idx)" class="text-rose-500 text-xs font-semibold"><i class="fa-solid fa-trash-can mr-1"></i> Xóa</button>
                                 </div>
                                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -497,7 +497,7 @@
                             </div>
                         </template>
                     </div>
-                    <button @click="addSection()" class="w-full py-2.5 border-2 border-dashed border-slate-300 hover:border-brand-500 text-slate-600 font-semibold text-xs rounded-xl">Thêm Phần Thi Mới</button>
+                    <button @click="addSection()" class="w-full py-2.5 border-2 border-dashed border-slate-300 hover:border-blue-500 text-slate-600 font-semibold text-xs rounded-xl">Thêm Phần Thi Mới</button>
                 </div>
             </div>
         </div>
@@ -513,7 +513,7 @@
             <div><label class="block text-xs font-semibold text-slate-700 mb-1">Lớp:</label><input type="text" x-model="newStudent.className" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg"></div>
             <div class="mt-4 flex justify-end space-x-2">
                 <button @click="showAddStudentModal = false" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg">Hủy</button>
-                <button @click="saveManualStudent()" class="px-4 py-2 bg-brand-600 text-white text-xs font-semibold rounded-lg">Lưu</button>
+                <button @click="saveManualStudent()" class="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg">Lưu</button>
             </div>
         </div>
     </div>
