@@ -3,38 +3,66 @@ export const timerModule = {
         if (app.timer.isRunning) {
             clearInterval(app.timer.intervalId);
             app.timer.isRunning = false;
-            app.triggerToast("Đã tạm dừng đồng hồ!", "warning");
         } else {
+            if (!app.timer.timeLeft || app.timer.timeLeft <= 0) {
+                app.timer.timeLeft = (app.config.durationMinutes || 45) * 60;
+            }
             app.timer.isRunning = true;
-            app.triggerToast("Bắt đầu tính giờ làm bài!", "success");
             app.timer.intervalId = setInterval(() => {
-                if (app.timer.timeLeft > 0) app.timer.timeLeft--;
-                else { 
-                    clearInterval(app.timer.intervalId); 
-                    app.timer.isRunning = false; 
-                    app.triggerToast("HẾT GIỜ LÀM BÀI!", "error"); 
+                if (app.timer.timeLeft > 0) {
+                    app.timer.timeLeft--;
+                } else {
+                    clearInterval(app.timer.intervalId);
+                    app.timer.isRunning = false;
+                    app.triggerToast("Đã hết giờ làm bài!", "warning");
                 }
             }, 1000);
         }
     },
+
     resetTimer(app) {
-        clearInterval(app.timer.intervalId);
+        if (app.timer.intervalId) {
+            clearInterval(app.timer.intervalId);
+        }
         app.timer.isRunning = false;
         app.timer.timeLeft = (app.config.durationMinutes || 45) * 60;
-        app.triggerToast("Đã đặt lại đồng hồ thi!", "info");
+        app.triggerToast("Đã đặt lại đồng hồ đếm ngược!", "info");
     },
+
+    // Xử lý tăng (+) hoặc giảm (-) phút ngắt giờ làm bài
     addExtraMinutes(app, mins) {
-        app.timer.timeLeft += mins * 60;
-        app.triggerToast(`Đã cộng thêm ${mins} phút!`, "success");
+        app.timer.timeLeft = Math.max(0, app.timer.timeLeft + mins * 60);
+        const actionText = mins > 0 ? `Thêm ${mins} phút` : `Giảm ${Math.abs(mins)} phút`;
+        app.triggerToast(`Đã ${actionText} thời gian làm bài!`, "info");
     },
+
+    // Đặt nhanh thời gian làm bài thi (15, 30, 45, 60, 90 phút...)
+    setQuickDuration(app, mins) {
+        app.config.durationMinutes = mins;
+        if (app.timer.intervalId) {
+            clearInterval(app.timer.intervalId);
+        }
+        app.timer.isRunning = false;
+        app.timer.timeLeft = mins * 60;
+        app.saveToLocalStorage();
+        app.triggerToast(`Đã thiết lập thời gian làm bài: ${mins} phút!`, "success");
+    },
+
     formatTime(seconds) {
-        const m = Math.floor(seconds / 60);
-        const s = seconds % 60;
-        return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        const s = Math.max(0, seconds || 0);
+        const m = Math.floor(s / 60);
+        const remainingSecs = s % 60;
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${pad(m)}:${pad(remainingSecs)}`;
     },
+
     addLog(app) {
-        if (!app.newLogText.trim()) return;
-        app.logs.unshift({ time: new Date().toLocaleTimeString('vi-VN'), text: app.newLogText.trim() });
+        if (!app.newLogText || !app.newLogText.trim()) return;
+        const timeStr = new Date().toLocaleTimeString('vi-VN');
+        app.logs.unshift({
+            time: timeStr,
+            text: app.newLogText.trim()
+        });
         app.newLogText = '';
         app.saveToLocalStorage();
     }
