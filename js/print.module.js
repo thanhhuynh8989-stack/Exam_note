@@ -221,11 +221,11 @@ export const printModule = {
                             <td class="col-right bold">Học kỳ : ${cfg.semester || '1'}</td>
                         </tr>
                         <tr>
-                            <!-- Gộp 2 ô đầu dòng 3 (Colspan 2) và căn giữa MÔN & MÃ MÔN -->
-                            <td colspan="2" class="col-center bold" style="text-align: center; white-space: normal; word-break: break-word;">
-                                MÔN : <span style="font-weight: normal;">${cfg.subjectName || ''}</span>
-                                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                                MÃ MÔN : ${cfg.subjectCode || ''}
+                            <!-- DÒNG 3: NỐI CELL 1 VÀ CELL 2, CĂN GIỮA, TỰ ĐỘNG XUỐNG DÒNG MÃ MÔN KHI TÊN MÔN QUÁ DÀI -->
+                            <td colspan="2" style="text-align: center; padding: 2px 0; word-break: break-word;">
+                                <span class="bold">MÔN : </span><span style="font-weight: normal;">${cfg.subjectName || ''}</span>
+                                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                                <span class="bold" style="white-space: nowrap; display: inline-block;">MÃ MÔN : ${cfg.subjectCode || ''}</span>
                             </td>
                             <td class="col-right bold">Lần thi : ${cfg.examAttempt || '1'}</td>
                         </tr>
