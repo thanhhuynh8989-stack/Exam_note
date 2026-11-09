@@ -30,6 +30,7 @@ document.addEventListener('alpine:init', () => {
             semester: '1',
             examAttempt: '1',
             examTime: '07h00 - Ngày 08/11/2026',
+            durationMinutes: 45,
             roomName: '116',
             facility: 'K7/25 Quang Trung',
             examiner1: 'HUỲNH NGỌC THÀNH',
@@ -38,7 +39,7 @@ document.addEventListener('alpine:init', () => {
                 { title: 'Tiêu bản tự chọn', maxScore: 5, note: 'Vẽ hình và trình bày' },
                 { title: 'Bài thi chỉ định', maxScore: 5, note: 'Quan sát đặc điểm' }
             ]
-        }
+        }, // <--- Dấu phẩy ở đây đã được bổ sung
         picker: { rawExamList: "Đề 1\nĐề 2\nĐề 3\nĐề 4\nĐề 5\nĐề 6\nĐề 7\nĐề 8", currentDisplay: "", isSpinning: false, targetStudentId: "" },
         students: [],
         newStudent: { mssv: '', hoLot: '', ten: '', className: '' },
