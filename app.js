@@ -108,7 +108,7 @@ document.addEventListener('alpine:init', () => {
             this.saveToLocalStorage();
             this.triggerToast("Đã lưu bảng điểm thành công!", "success");
             this.showGradingModal = false;
-        }
+        },
 
         // Print A4 Sheet action
         printExamSheet() {
