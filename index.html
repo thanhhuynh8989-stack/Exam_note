@@ -305,23 +305,38 @@
                             <div class="text-4xl sm:text-6xl font-black text-amber-400 font-mono" x-text="picker.currentDisplay || 'CHƯA BỐC'">--</div>
                         </div>
                         <div class="space-y-4 max-w-lg mx-auto">
-                            <select x-model="picker.targetStudentId" class="w-full text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl p-3">
+                            <!-- Dropdown chọn đối tượng -->
+                            <select x-model="picker.targetStudentId" 
+                                    @change="handleTargetStudentChange()"
+                                    class="w-full text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-amber-500">
                                 <option value="">-- Bốc tự do không gán --</option>
+                                <option value="ALL" class="font-bold text-blue-700">🎲 Gán ngẫu nhiên cho TOÀN BỘ sinh viên</option>
                                 <template x-for="st in students" :key="st.id">
                                     <option :value="st.id" x-text="`${st.mssv} - ${st.hoLot} ${st.ten}`"></option>
                                 </template>
                             </select>
-                            <button @click="startRandomDraw()" :disabled="picker.isSpinning || getAvailableExams().length === 0" class="w-full py-4 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black rounded-xl text-base shadow-lg uppercase">
-                                <span x-text="picker.isSpinning ? 'Đang Xoay Số...' : 'Bắt Đầu Bốc Đề Thi'"></span>
+        
+                            <!-- Checkbox Cho phép trùng đề -->
+                            <div class="flex items-center justify-center space-x-2 pt-1 text-xs font-semibold text-slate-700">
+                                <input type="checkbox" id="allowDuplicateCheck" x-model="picker.allowDuplicate" class="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500">
+                                <label for="allowDuplicateCheck" class="cursor-pointer select-none">
+                                    Cho phép trùng mã đề thi giữa các sinh viên
+                                </label>
+                            </div>
+        
+                            <button @click="startRandomDraw()" 
+                                    :disabled="picker.isSpinning || getAvailableExams().length === 0" 
+                                    class="w-full py-4 bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 text-slate-900 font-black rounded-xl text-base shadow-lg uppercase transition-all">
+                                <span x-text="picker.isSpinning ? 'Đang Xoay Số...' : (picker.targetStudentId === 'ALL' ? 'Bắt Đầu Gán Cho Toàn Bộ SV' : 'Bắt Đầu Bốc Đề Thi')"></span>
                             </button>
                         </div>
                     </div>
                 </div>
-
+        
                 <div class="space-y-6">
                     <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm space-y-3">
                         <h3 class="font-bold text-slate-800 text-xs uppercase tracking-wide border-b border-slate-100 pb-2">Danh Sách Mã Đề</h3>
-                        <textarea x-model="picker.rawExamList" rows="8" @input="saveToLocalStorage()" class="w-full text-xs font-mono p-3 border border-slate-300 rounded-lg"></textarea>
+                        <textarea x-model="picker.rawExamList" rows="8" @input="saveToLocalStorage(); handleTargetStudentChange()" class="w-full text-xs font-mono p-3 border border-slate-300 rounded-lg"></textarea>
                     </div>
                 </div>
             </div>
