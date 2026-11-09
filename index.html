@@ -232,36 +232,59 @@
                                 <i class="fa-solid fa-expand text-lg"></i>
                             </button>
                         </div>
-
+        
                         <div class="py-4 sm:py-8" :class="{'timer-warning text-rose-600': timer.timeLeft <= 300 && timer.timeLeft > 0}">
                             <div class="font-mono text-5xl sm:text-7xl md:text-8xl font-black tracking-tight text-slate-800 select-none" x-text="formatTime(timer.timeLeft)">00:00</div>
                             <p class="text-xs sm:text-sm font-medium text-slate-500 mt-3">
                                 Tổng thời gian làm bài: <span class="text-slate-800 font-bold" x-text="config.durationMinutes + ' phút'"></span>
                             </p>
                         </div>
-
+        
                         <div class="w-full bg-slate-100 rounded-full h-4 overflow-hidden mb-6 p-0.5 border border-slate-200">
                             <div class="h-full rounded-full transition-all duration-1000 ease-linear" :class="getProgressColor()" :style="`width: ${getRemainingPercentage()}%`"></div>
                         </div>
-
-                        <div class="flex flex-wrap items-center justify-center gap-3">
-                            <button @click="toggleTimer()" 
-                                    class="px-6 py-3.5 rounded-xl font-bold text-white shadow-md transition-all flex items-center space-x-2 text-sm sm:text-base active:scale-95"
-                                    :class="timer.isRunning ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'">
-                                <i class="fa-solid" :class="timer.isRunning ? 'fa-pause' : 'fa-play'"></i>
-                                <span x-text="timer.isRunning ? 'TẠM DỪNG' : 'BẮT ĐẦU THI'"></span>
-                            </button>
-                            <button @click="resetTimer()" class="px-5 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition-all border border-slate-200">
-                                <i class="fa-solid fa-rotate-left mr-1"></i> Đặt Lại
-                            </button>
-                            <div class="flex space-x-2">
-                                <button @click="addExtraMinutes(5)" class="px-3.5 py-3.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-xl text-xs transition-all border border-blue-200">+5 phút</button>
-                                <button @click="addExtraMinutes(10)" class="px-3.5 py-3.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-xl text-xs transition-all border border-blue-200">+10 phút</button>
+        
+                        <!-- CỤM ĐIỀU KHIỂN & BỔ SUNG NÚT TĂNG/GIẢM VÀ ĐẶT NHANH -->
+                        <div class="space-y-4">
+                            <!-- Hàng 1: Bắt đầu / Đặt lại & Tăng Giảm Phút -->
+                            <div class="flex flex-wrap items-center justify-center gap-2">
+                                <button @click="toggleTimer()" 
+                                        class="px-6 py-3 rounded-xl font-bold text-white shadow-md transition-all flex items-center space-x-2 text-sm sm:text-base active:scale-95"
+                                        :class="timer.isRunning ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'">
+                                    <i class="fa-solid" :class="timer.isRunning ? 'fa-pause' : 'fa-play'"></i>
+                                    <span x-text="timer.isRunning ? 'TẠM DỪNG' : 'BẮT ĐẦU THI'"></span>
+                                </button>
+                                
+                                <button @click="resetTimer()" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs sm:text-sm rounded-xl transition-all border border-slate-200">
+                                    <i class="fa-solid fa-rotate-left mr-1"></i> Đặt Lại
+                                </button>
+        
+                                <div class="flex items-center space-x-1 border border-slate-200 p-1 rounded-xl bg-slate-50">
+                                    <button @click="addExtraMinutes(-10)" title="Giảm 10 phút" class="px-2.5 py-2 bg-white hover:bg-rose-50 text-rose-600 font-bold rounded-lg text-xs border border-slate-200 transition-all">-10p</button>
+                                    <button @click="addExtraMinutes(-5)" title="Giảm 5 phút" class="px-2.5 py-2 bg-white hover:bg-rose-50 text-rose-600 font-bold rounded-lg text-xs border border-slate-200 transition-all">-5p</button>
+                                    <button @click="addExtraMinutes(5)" title="Tăng 5 phút" class="px-2.5 py-2 bg-white hover:bg-emerald-50 text-emerald-600 font-bold rounded-lg text-xs border border-slate-200 transition-all">+5p</button>
+                                    <button @click="addExtraMinutes(10)" title="Tăng 10 phút" class="px-2.5 py-2 bg-white hover:bg-emerald-50 text-emerald-600 font-bold rounded-lg text-xs border border-slate-200 transition-all">+10p</button>
+                                </div>
+                            </div>
+        
+                            <!-- Hàng 2: Đặt nhanh mốc thời gian làm bài thi chuẩn -->
+                            <div class="flex items-center justify-center space-x-1.5 pt-2 border-t border-slate-100">
+                                <span class="text-[11px] font-semibold text-slate-400 mr-1">Đặt nhanh:</span>
+                                <template x-for="mins in [15, 30, 45, 60, 90]" :key="mins">
+                                    <button @click="setQuickDuration(mins)"
+                                            class="px-2.5 py-1 rounded-lg text-xs font-bold border transition-all"
+                                            :class="config.durationMinutes === mins 
+                                                ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
+                                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'">
+                                        <span x-text="mins + 'p'"></span>
+                                    </button>
+                                </template>
                             </div>
                         </div>
+        
                     </div>
                 </div>
-
+        
                 <div class="space-y-6">
                     <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
                         <h3 class="font-bold text-slate-800 text-xs sm:text-sm uppercase tracking-wide border-b border-slate-100 pb-2 mb-3 flex items-center justify-between">
@@ -275,7 +298,7 @@
                             <div class="flex justify-between py-1"><dt class="text-slate-500">Thang Điểm:</dt><dd class="font-semibold text-blue-600" x-text="getTotalPoints() + ' điểm'"></dd></div>
                         </dl>
                     </div>
-
+        
                     <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col h-[280px]">
                         <h3 class="font-bold text-slate-800 text-xs sm:text-sm uppercase tracking-wide border-b border-slate-100 pb-2 mb-3">Nhật Ký Phòng Thi</h3>
                         <div class="flex space-x-2 mb-3">
