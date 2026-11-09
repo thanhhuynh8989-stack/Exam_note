@@ -21,28 +21,24 @@ document.addEventListener('alpine:init', () => {
         
         timer: { timeLeft: 60 * 60, isRunning: false, intervalId: null },
         config: {
-            examTitle: 'KỲ THI KẾT THÚC HỌC PHẦN',
+            examTitle: 'DANH SÁCH SINH VIÊN DỰ THI KTHP',
+            academicYear: '2026-2027',
             subjectName: 'Sinh Học Đại Cương',
             subjectCode: 'BIO101',
-            roomName: '116',
-            examTime: '07h00 - 08/11/2026',
-            durationMinutes: 45,
-            
-            // Các trường thông tin biểu mẫu A4 chuẩn Đại học Duy Tân
-            academicYear: '2026-2027',
+            subClass: 'C1',
+            credits: '1',
             semester: '1',
             examAttempt: '1',
-            classGroup: 'BIO101',
-            subClass: 'C1',
+            examTime: '07h00 - Ngày 08/11/2026',
+            roomName: '116',
             facility: 'K7/25 Quang Trung',
             examiner1: 'HUỲNH NGỌC THÀNH',
             examiner2: '',
-
             sections: [
                 { title: 'Tiêu bản tự chọn', maxScore: 5, note: 'Vẽ hình và trình bày' },
                 { title: 'Bài thi chỉ định', maxScore: 5, note: 'Quan sát đặc điểm' }
             ]
-        },
+        }
         picker: { rawExamList: "Đề 1\nĐề 2\nĐề 3\nĐề 4\nĐề 5\nĐề 6\nĐề 7\nĐề 8", currentDisplay: "", isSpinning: false, targetStudentId: "" },
         students: [],
         newStudent: { mssv: '', hoLot: '', ten: '', className: '' },
