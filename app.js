@@ -92,6 +92,24 @@ document.addEventListener('alpine:init', () => {
         addSection() { configModule.addSection(this); },
         removeSection(idx) { configModule.removeSection(this, idx); },
 
+        hasGradingError() {
+            if (!this.activeStudent || !this.activeStudent.scores || !this.config.sections) return false;
+            return this.config.sections.some((sec, idx) => {
+                const score = Number(this.activeStudent.scores[idx]) || 0;
+                return score > Number(sec.maxScore);
+            });
+        },
+        
+        saveGradingModal() {
+            if (this.hasGradingError()) {
+                this.triggerToast("Có phần thi nhập vượt quá điểm tối đa, vui lòng kiểm tra lại!", "error");
+                return;
+            }
+            this.saveToLocalStorage();
+            this.triggerToast("Đã lưu bảng điểm thành công!", "success");
+            this.showGradingModal = false;
+        }
+
         // Print A4 Sheet action
         printExamSheet() {
             printModule.printExamSheet(this);
