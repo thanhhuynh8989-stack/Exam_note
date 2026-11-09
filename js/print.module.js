@@ -27,7 +27,6 @@ export const printModule = {
         } else {
             students.forEach((st, idx) => {
                 const isAbsent = st.isPresent === false;
-                const scoreDisplay = (!isAbsent && st.totalScore !== undefined && st.totalScore > 0) ? st.totalScore : '';
                 const noteDisplay = isAbsent ? 'Vắng' : (st.note || '');
 
                 studentRowsHTML += `
@@ -38,13 +37,13 @@ export const printModule = {
                         <td style="text-align: left; padding-left: 5px; font-weight: bold;">${st.ten || ''}</td>
                         <td style="text-align: center; font-size: 8.5pt;">${khoiLop}</td>
                         <td style="text-align: center; font-size: 8.5pt;">${st.className || ''}</td>
-                        <td style="text-align: center;"></td>
-                        <td style="text-align: center;"></td>
-                        <td style="text-align: center;"></td>
-                        <td style="text-align: center;"></td>
-                        <td style="text-align: center; font-weight: bold;">${scoreDisplay}</td>
-                        <td style="text-align: center;"></td>
-                        <td style="text-align: center; font-size: 8.5pt;">${noteDisplay}</td>
+                        <td style="text-align: center;"></td> <!-- SỐ TỜ -->
+                        <td style="text-align: center;"></td> <!-- KÝ TÊN -->
+                        <td style="text-align: center;"></td> <!-- Đồ án Cá nhân -->
+                        <td style="text-align: center;"></td> <!-- Đồ án nhóm -->
+                        <td style="text-align: center;"></td> <!-- Kiểm Tra Cuối Kỳ (Không điền điểm) -->
+                        <td style="text-align: center;"></td> <!-- CHỮ -->
+                        <td style="text-align: center; font-size: 8.5pt;">${noteDisplay}</td> <!-- GHI CHÚ -->
                     </tr>
                 `;
             });
@@ -136,11 +135,10 @@ export const printModule = {
                     .header-table td {
                         padding: 2px 0;
                         vertical-align: middle;
-                        white-space: nowrap;
                     }
-                    .col-left { text-align: center; }
-                    .col-center { text-align: center; }
-                    .col-right { text-align: right; }
+                    .col-left { text-align: center; white-space: nowrap; }
+                    .col-center { text-align: center; white-space: nowrap; }
+                    .col-right { text-align: right; white-space: nowrap; }
                     
                     .bold { font-weight: bold; }
                     .uppercase { text-transform: uppercase; }
@@ -204,8 +202,8 @@ export const printModule = {
                     <!-- HEADER 4 DÒNG CÂN ĐỐI CHUẨN ĐẠI HỌC DUY TÂN -->
                     <table class="header-table">
                         <colgroup>
-                            <col style="width: 34%;">
-                            <col style="width: 50%;">
+                            <col style="width: 36%;">
+                            <col style="width: 48%;">
                             <col style="width: 16%;">
                         </colgroup>
                         <tr>
@@ -223,7 +221,8 @@ export const printModule = {
                             <td class="col-right bold">Học kỳ : ${cfg.semester || '1'}</td>
                         </tr>
                         <tr>
-                            <td style="text-align: left;" class="bold">
+                            <!-- Căn giữa cột 1, cho phép tự động xuống dòng nếu tên môn quá dài -->
+                            <td style="text-align: center; white-space: normal; word-break: break-word;" class="bold">
                                 MÔN : <span style="font-weight: normal;">${cfg.subjectName || ''}</span>
                             </td>
                             <td class="col-center bold">MÃ MÔN : ${cfg.subjectCode || ''}</td>
