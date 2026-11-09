@@ -80,7 +80,9 @@
                         <h3 class="text-base font-bold text-slate-900">Chấm Điểm Chi Tiết Thí Sinh</h3>
                         <p class="text-xs text-slate-500" x-text="`${activeStudent.mssv || ''} - ${activeStudent.hoLot || ''} ${activeStudent.ten || ''}`"></p>
                     </div>
-                    <button @click="showGradingModal = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+                    <button @click="showGradingModal = false; activeStudent = null" class="text-slate-400 hover:text-slate-600">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
                 </div>
     
                 <div class="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
@@ -128,7 +130,9 @@
                 </div>
     
                 <div class="flex justify-end space-x-2 pt-2">
-                    <button @click="showGradingModal = false" class="px-4 py-2 bg-slate-100 text-slate-600 text-xs font-semibold rounded-xl hover:bg-slate-200">Hủy</button>
+                    <button @click="showGradingModal = false; activeStudent = null" class="px-4 py-2 bg-slate-100 text-slate-600 text-xs font-semibold rounded-xl hover:bg-slate-200">
+                        Hủy
+                    </button>
                     <button @click="saveGradingModal()" 
                             :disabled="hasGradingError()"
                             :class="hasGradingError() ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'"
