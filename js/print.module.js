@@ -1,116 +1,127 @@
 export const printModule = {
-    // Hàm kích hoạt chế độ xem trước và in ấn
+    // Hàm kích hoạt chế độ xem trước và in ấn chuẩn A4 Ngang theo mẫu ĐH Duy Tân
     printExamSheet(app) {
-        // Tạo một cửa sổ/tab mới để làm giao diện Preview A4
+        // Tạo cửa sổ/tab mới làm giao diện Preview A4
         const printWindow = window.open('', '_blank');
         if (!printWindow) {
-            app.triggerToast("Trình duyệt đang chặn cửa sổ pop-up. Hãy cho phép để xem trước bản in!", "error");
+            if (typeof app.triggerToast === 'function') {
+                app.triggerToast("Trình duyệt đang chặn cửa sổ pop-up. Hãy cho phép để xem trước bản in!", "error");
+            } else {
+                alert("Trình duyệt đang chặn cửa sổ pop-up. Hãy cho phép để xem trước bản in!");
+            }
             return;
         }
 
-        // Lấy dữ liệu cấu hình từ app
+        // Lấy dữ liệu cấu hình & danh sách sinh viên
         const cfg = app.config || {};
         const students = app.students || [];
 
-        // Tính tổng điểm tối đa từ các phần thi
-        const totalMaxScore = cfg.sections ? cfg.sections.reduce((sum, s) => sum + (Number(s.maxScore) || 0), 0) : 10;
+        // Tự động ghép Khối lớp từ Mã môn và Lớp HP (VD: BIO101 C1)
+        const khoiLop = `${cfg.subjectCode || ''} ${cfg.subClass || ''}`.trim();
 
-        // Render danh sách sinh viên ra các dòng của bảng
+        // Render danh sách sinh viên ra các dòng của bảng (13 cột chuẩn theo ảnh)
         let studentRowsHTML = '';
         if (students.length === 0) {
-            studentRowsHTML = `<tr><td colspan="9" style="text-align: center; padding: 20px; color: #666;">Chưa có dữ liệu thí sinh trong phòng thi này.</td></tr>`;
+            studentRowsHTML = `
+                <tr>
+                    <td colspan="13" style="text-align: center; padding: 20px; color: #666; font-style: italic;">
+                        Chưa có dữ liệu sinh viên trong danh sách phòng thi này.
+                    </td>
+                </tr>
+            `;
         } else {
             students.forEach((st, idx) => {
+                const isAbsent = st.isPresent === false;
+                const scoreDisplay = (!isAbsent && st.totalScore !== undefined && st.totalScore > 0) ? st.totalScore : '';
+                const noteDisplay = isAbsent ? 'Vắng' : (st.note || '');
+
                 studentRowsHTML += `
-                    <tr>
+                    <tr style="height: 26px;">
                         <td style="text-align: center;">${idx + 1}</td>
                         <td style="font-family: monospace; font-weight: bold; text-align: center;">${st.mssv || ''}</td>
-                        <td>${st.hoLot || ''}</td>
-                        <td style="font-weight: 500;">${st.ten || ''}</td>
-                        <td style="text-align: center;">${st.className || cfg.roomName || ''}</td>
-                        <td style="text-align: center;"></td> <!-- Số tờ -->
-                        <td style="text-align: center;"></td> <!-- Ký tên -->
-                        <td style="text-align: center;"></td> <!-- Điểm -->
-                        <td style="text-align: center;"></td> <!-- Ghi chú -->
+                        <td style="text-align: left; padding-left: 5px;">${st.hoLot || ''}</td>
+                        <td style="text-align: left; padding-left: 5px; font-weight: bold;">${st.ten || ''}</td>
+                        <td style="text-align: center;">${khoiLop}</td>
+                        <td style="text-align: center;">${st.className || ''}</td>
+                        <td style="text-align: center;"></td> <!-- SỐ TỜ -->
+                        <td style="text-align: center;"></td> <!-- KÝ TÊN -->
+                        <td style="text-align: center;"></td> <!-- Đồ án Cá nhân -->
+                        <td style="text-align: center;"></td> <!-- Đồ án nhóm -->
+                        <td style="text-align: center; font-weight: bold;">${scoreDisplay}</td> <!-- Kiểm Tra Cuối Kỳ -->
+                        <td style="text-align: center;"></td> <!-- CHỮ -->
+                        <td style="text-align: center; font-size: 9pt;">${noteDisplay}</td> <!-- GHI CHÚ -->
                     </tr>
                 `;
             });
         }
 
-        // Xây dựng mã HTML chuẩn biểu mẫu hành chính A4
+        // Xây dựng mã HTML chuẩn A4 Landscape (Khổ ngang) khớp mẫu ảnh
         const htmlContent = `
             <!DOCTYPE html>
             <html lang="vi">
             <head>
                 <meta charset="UTF-8">
-                <title>In Danh Sách Dự Thi - ${cfg.subjectName || 'Môn học'}</title>
+                <title>DANH SÁCH SINH VIÊN DỰ THI KTHP - ${cfg.subjectName || cfg.subjectCode || 'Môn học'}</title>
                 <style>
-                    /* Khổ giấy A4 dọc và định dạng trang in */
+                    /* Định dạng khổ giấy A4 Ngang khi in */
                     @page {
-                        size: A4 portrait;
-                        margin: 10mm 15mm 10mm 15mm;
+                        size: A4 landscape;
+                        margin: 8mm 10mm 8mm 10mm;
                     }
                     * {
                         box-sizing: border-box;
                         -webkit-print-color-adjust: exact;
                     }
                     body {
-                        font-family: 'Times New Roman', Times, serif, Arial, sans-serif;
-                        font-size: 11pt;
+                        font-family: 'Times New Roman', Times, serif;
+                        font-size: 10.5pt;
                         color: #000;
-                        line-height: 1.25;
+                        line-height: 1.2;
                         margin: 0;
                         padding: 0;
-                        background: #525659; /* Màu nền xám bên ngoài khung A4 khi xem trước */
+                        background: #525659;
                     }
 
-                    /* Khung chứa trang giấy A4 trên màn hình Preview */
+                    /* Khung trang giấy A4 Ngang trên màn hình Preview */
                     .page-container {
-                        width: 210mm;
-                        min-height: 297mm;
-                        padding: 15mm;
+                        width: 297mm;
+                        min-height: 210mm;
+                        padding: 10mm 12mm;
                         margin: 10mm auto;
                         background: #ffffff;
                         box-shadow: 0 0 15px rgba(0,0,0,0.3);
                         position: relative;
                     }
 
-                    /* Khi bấm lệnh in từ trình duyệt, ẩn nền xám, bỏ box-shadow */
+                    /* Ẩn bớt hiệu ứng màn hình khi bấm nút in */
                     @media print {
-                        body {
-                            background: none;
-                        }
+                        body { background: none; }
                         .page-container {
                             width: 100%;
                             margin: 0;
                             padding: 0;
                             box-shadow: none;
                         }
-                        .no-print {
-                            display: none !important;
-                        }
+                        .no-print { display: none !important; }
                     }
 
-                    /* Thanh công cụ nổi trên trang Preview (chỉ hiển thị khi xem trước, ẩn khi in) */
+                    /* Thanh công cụ xem trước */
                     .preview-toolbar {
                         position: fixed;
                         top: 0;
                         left: 0;
                         right: 0;
-                        background: #1e293b;
+                        background: #0f172a;
                         color: #fff;
-                        padding: 12px 24px;
+                        padding: 10px 24px;
                         display: flex;
                         justify-content: space-between;
                         align-items: center;
                         z-index: 1000;
-                        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-                    }
-                    .preview-toolbar h3 {
-                        margin: 0;
-                        font-size: 16px;
+                        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);
                         font-family: Arial, sans-serif;
                     }
+                    .preview-toolbar h3 { margin: 0; font-size: 15px; }
                     .btn-action {
                         background: #2563eb;
                         color: white;
@@ -119,178 +130,134 @@ export const printModule = {
                         border-radius: 6px;
                         font-weight: bold;
                         cursor: pointer;
-                        font-family: Arial, sans-serif;
-                        font-size: 14px;
-                        margin-left: 10px;
+                        font-size: 13px;
+                        margin-left: 8px;
                     }
                     .btn-action:hover { background: #1d4ed8; }
                     .btn-close { background: #64748b; }
                     .btn-close:hover { background: #475569; }
+                    .preview-spacer { height: 48px; }
 
-                    /* Khoảng đệm đầu trang do có thanh toolbar Preview */
-                    .preview-spacer {
-                        height: 50px;
-                    }
-
-                    /* Header biểu mẫu */
+                    /* Header 4 dòng chuẩn Duy Tân */
                     .header-table {
                         width: 100%;
                         border-collapse: collapse;
-                        margin-bottom: 10px;
+                        margin-bottom: 6px;
                     }
                     .header-table td {
-                        vertical-align: top;
-                        padding: 0;
+                        padding: 2px 0;
+                        vertical-align: middle;
                     }
-                    .school-name {
-                        font-size: 11pt;
-                        font-weight: bold;
-                        text-align: center;
-                        text-transform: uppercase;
-                    }
-                    .doc-title {
-                        font-size: 14pt;
-                        font-weight: bold;
-                        text-align: center;
-                        text-transform: uppercase;
-                        margin-top: 5px;
-                        margin-bottom: 5px;
-                    }
-                    .exam-meta {
-                        font-size: 11pt;
-                        text-align: center;
-                        margin-bottom: 8px;
-                    }
-                    .exam-details {
-                        font-size: 11pt;
-                        margin-bottom: 10px;
-                        border: 1px solid #000;
-                        padding: 6px 10px;
-                    }
-                    .exam-details table {
-                        width: 100%;
-                        border-collapse: collapse;
-                    }
-                    .exam-details td {
-                        padding: 2px 4px;
-                    }
+                    .txt-center { text-align: center; }
+                    .txt-right { text-align: right; }
+                    .bold { font-weight: bold; }
+                    .uppercase { text-transform: uppercase; }
 
-                    /* Bảng danh sách sinh viên */
+                    /* Bảng danh sách thí sinh 13 cột */
                     .student-table {
                         width: 100%;
                         border-collapse: collapse;
-                        margin-bottom: 15px;
+                        margin-top: 4px;
+                        margin-bottom: 8px;
                     }
                     .student-table th, .student-table td {
                         border: 1px solid #000;
-                        padding: 5px 4px;
-                        font-size: 10pt;
+                        padding: 4px 2px;
+                        font-size: 9.5pt;
                     }
                     .student-table th {
-                        background-color: #f2f2f2 !important;
+                        background-color: #ffffff;
                         text-align: center;
                         font-weight: bold;
                     }
 
-                    /* Khu vực tổng kết và chữ ký */
-                    .footer-section {
-                        font-size: 11pt;
-                        margin-top: 10px;
-                    }
-                    .summary-line {
-                        margin-bottom: 15px;
-                        font-weight: bold;
+                    /* Chân trang và chữ ký */
+                    .footer-summary {
+                        font-size: 10pt;
+                        font-style: italic;
+                        margin-top: 6px;
+                        margin-bottom: 12px;
                     }
                     .signature-table {
                         width: 100%;
                         border-collapse: collapse;
                         text-align: center;
-                        margin-top: 10px;
+                        font-weight: bold;
+                        font-size: 10.5pt;
                     }
                     .signature-table td {
-                        vertical-align: top;
                         width: 33.33%;
-                        padding: 5px;
+                        vertical-align: top;
+                        padding: 4px;
                     }
-                    .signature-title {
-                        font-weight: bold;
-                        text-transform: uppercase;
-                        font-size: 10pt;
-                    }
-                    .signature-subtitle {
-                        font-style: italic;
-                        font-size: 9pt;
-                        margin-bottom: 60px; /* Khoảng trống để ký tên */
-                    }
-                    .examiner-name {
-                        font-weight: bold;
-                        text-transform: uppercase;
+                    .sig-space {
+                        height: 55px;
                     }
                 </style>
             </head>
             <body>
 
-                <!-- Thanh công cụ Xem trước (Ẩn khi in PDF) -->
                 <div class="preview-toolbar no-print">
-                    <h3>📄 Xem Trước Bản In A4 (Đứng)</h3>
+                    <h3>📄 Xem Trước Bản In A4 (Khổ Ngang - Chuẩn ĐH Duy Tân)</h3>
                     <div>
-                        <button class="btn-action" onclick="window.print()">🖨️ In / Tải về PDF</button>
-                        <button class="btn-action btn-close" onclick="window.close()">Đóng cửa sổ</button>
+                        <button class="btn-action" onclick="window.print()">🖨️ In / Xuất PDF</button>
+                        <button class="btn-action btn-close" onclick="window.close()">Đóng</button>
                     </div>
                 </div>
                 <div class="preview-spacer no-print"></div>
 
-                <!-- Khung trang giấy A4 -->
                 <div class="page-container">
                     
-                    <!-- Phần đầu biểu mẫu -->
+                    <!-- HEADER 4 DÒNG CHUẨN ĐẠI HỌC DUY TÂN -->
                     <table class="header-table">
                         <tr>
-                            <td style="width: 40%;">
-                                <div style="font-size: 10pt; text-align: center;">BỘ GIÁO DỤC & ĐÀO TẠO</div>
-                                <div class="school-name">ĐẠI HỌC DUY TÂN</div>
+                            <td style="width: 28%;" class="txt-center">BỘ GIÁO DỤC & ĐÀO TẠO</td>
+                            <td style="width: 54%; font-size: 12pt;" class="txt-center bold uppercase">
+                                DANH SÁCH SINH VIÊN DỰ THI KTHP * NH: ${cfg.academicYear || '2026-2027'}
                             </td>
-                            <td style="width: 60%;">
-                                <div style="font-size: 10pt; text-align: right; font-weight: bold;">
-                                    NH: ${cfg.academicYear || '2026-2027'} | HKI: ${cfg.semester || '1'} | Lần thi: ${cfg.examAttempt || '1'}
-                                </div>
+                            <td style="width: 18%;" class="txt-right bold">Số TC : ${cfg.credits || '1'}</td>
+                        </tr>
+                        <tr>
+                            <td class="txt-center bold uppercase">ĐẠI HỌC DUY TÂN</td>
+                            <td class="txt-center bold font-size: 11pt;">
+                                KHỐI LỚP: &nbsp;&nbsp;&nbsp;&nbsp; ${khoiLop}
+                            </td>
+                            <td class="txt-right bold">Học kỳ : ${cfg.semester || '1'}</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">MÔN : <span style="font-weight: normal;">${cfg.subjectName || ''}</span></td>
+                            <td class="txt-center bold">MÃ MÔN : ${cfg.subjectCode || ''}</td>
+                            <td class="txt-right bold">Lần thi : ${cfg.examAttempt || '1'}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="3" style="padding-top: 4px;">
+                                <i>Thời gian:</i> &nbsp;&nbsp;&nbsp;&nbsp; <b>${cfg.examTime || ''}</b> &nbsp;&nbsp;&nbsp;&nbsp;
+                                - <i>Phòng:</i> &nbsp;&nbsp;&nbsp;&nbsp; <b>${cfg.roomName || ''}</b> &nbsp;&nbsp;&nbsp;&nbsp;
+                                - <i>Cơ sở:</i> <b>${cfg.facility || ''}</b>
                             </td>
                         </tr>
                     </table>
 
-                    <div class="doc-title">DANH SÁCH SINH VIÊN DỰ THI KTHP</div>
-                    <div class="exam-meta">
-                        <b>MÔN :</b> ${cfg.subjectName || '---'} &nbsp;&nbsp;|&nbsp;&nbsp; <b>MÃ MÔN :</b> ${cfg.subjectCode || 'BIO101'}
-                    </div>
-
-                    <div class="exam-details">
-                        <table>
-                            <tr>
-                                <td style="width: 35%;"><b>Thời gian:</b> ${cfg.examTime || '07h00 - 08/11/2026'}</td>
-                                <td style="width: 25%;"><b>Phòng:</b> ${cfg.roomName || '116'}</td>
-                                <td style="width: 40%;"><b>Cơ sở:</b> ${cfg.facility || 'K7/25 Quang Trung'}</td>
-                            </tr>
-                            <tr>
-                                <td><b>Khối lớp:</b> ${cfg.classGroup || cfg.subjectCode || 'BIO101'}</td>
-                                <td><b>Lớp:</b> ${cfg.subClass || 'C1'}</td>
-                                <td><b>Số TC:</b> ${cfg.credits || '1'}</td>
-                            </tr>
-                        </table>
-                    </div>
-
-                    <!-- Bảng danh sách sinh viên -->
+                    <!-- BẢNG DANH SÁCH 13 CỘT (CHIA NHỎ CỘT ĐIỂM THI KTHP) -->
                     <table class="student-table">
                         <thead>
                             <tr>
-                                <th style="width: 35px;">STT</th>
-                                <th style="width: 95px;">MÃ SV</th>
-                                <th>HỌ LÓT</th>
-                                <th style="width: 85px;">TÊN</th>
-                                <th style="width: 75px;">LỚP MÔN</th>
-                                <th style="width: 45px;">SỐ TỜ</th>
-                                <th style="width: 90px;">KÝ TÊN</th>
-                                <th style="width: 65px;">ĐIỂM (${totalMaxScore}đ)</th>
-                                <th style="width: 75px;">GHI CHÚ</th>
+                                <th rowspan="2" style="width: 32px;">STT</th>
+                                <th rowspan="2" style="width: 95px;">MSV</th>
+                                <th rowspan="2" style="width: 140px;">HỌ VÀ</th>
+                                <th rowspan="2" style="width: 65px;">TÊN</th>
+                                <th rowspan="2" style="width: 90px;">LỚP MÔN HỌC</th>
+                                <th rowspan="2" style="width: 80px;">LỚP SINH HOẠT</th>
+                                <th rowspan="2" style="width: 40px;">SỐ TỜ</th>
+                                <th rowspan="2" style="width: 65px;">KÝ TÊN</th>
+                                <th colspan="4">ĐIỂM THI KTHP</th>
+                                <th rowspan="2" style="width: 75px;">GHI CHÚ</th>
+                            </tr>
+                            <tr>
+                                <th style="width: 45px; font-size: 8.5pt;">Đồ án Cá nhân</th>
+                                <th style="width: 45px; font-size: 8.5pt;">Đồ án nhóm</th>
+                                <th style="width: 55px; font-size: 8.5pt;">Kiểm Tra Cuối Kỳ</th>
+                                <th style="width: 50px; font-size: 8.5pt;">CHỮ</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -298,31 +265,28 @@ export const printModule = {
                         </tbody>
                     </table>
 
-                    <!-- Phần tổng kết và chữ ký -->
-                    <div class="footer-section">
-                        <div class="summary-line">
-                            Số SV vắng: ........... &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Đình chỉ: ........... &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Tổng số bài: ........... &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Tổng số tờ: ...........
-                        </div>
-
-                        <table class="signature-table">
-                            <tr>
-                                <td>
-                                    <div class="signature-title">Giám Khảo 1</div>
-                                    <div class="signature-subtitle">(Ký và ghi rõ họ tên)</div>
-                                    <div class="examiner-name">${cfg.examiner1 || ''}</div>
-                                </td>
-                                <td>
-                                    <div class="signature-title">Giám Khảo 2</div>
-                                    <div class="signature-subtitle">(Ký và ghi rõ họ tên)</div>
-                                    <div class="examiner-name">${cfg.examiner2 || ''}</div>
-                                </td>
-                                <td>
-                                    <div class="signature-title">Trung Tâm Khảo Thí</div>
-                                    <div class="signature-subtitle">(Ký và đóng dấu)</div>
-                                </td>
-                            </tr>
-                        </table>
+                    <!-- CHÂN TRANG & KHU VỰC CHỮ KÝ 3 BÊN -->
+                    <div class="footer-summary">
+                        Số SV vắng: ....... &nbsp;&nbsp;&nbsp;&nbsp; Đình chỉ: ........ &nbsp;&nbsp;&nbsp;&nbsp; Tổng số bài: ........ &nbsp;&nbsp;&nbsp;&nbsp; Tổng số tờ: ........
                     </div>
+
+                    <table class="signature-table">
+                        <tr>
+                            <td>GIÁM KHẢO 1</td>
+                            <td>GIÁM KHẢO 2</td>
+                            <td>TRUNG TÂM KHẢO THÍ</td>
+                        </tr>
+                        <tr>
+                            <td class="sig-space"></td>
+                            <td class="sig-space"></td>
+                            <td class="sig-space"></td>
+                        </tr>
+                        <tr>
+                            <td class="uppercase">${cfg.examiner1 || ''}</td>
+                            <td class="uppercase">${cfg.examiner2 || ''}</td>
+                            <td></td>
+                        </tr>
+                    </table>
 
                 </div>
 
@@ -330,7 +294,7 @@ export const printModule = {
             </html>
         `;
 
-        // Nạp nội dung vào cửa sổ mới và mở hộp thoại Print
+        // Nạp HTML vào cửa sổ mới
         printWindow.document.write(htmlContent);
         printWindow.document.close();
     }
