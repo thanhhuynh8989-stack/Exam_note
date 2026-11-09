@@ -15,6 +15,7 @@ document.addEventListener('alpine:init', () => {
         showAddStudentModal: false,
         showGradingModal: false,
         activeStudent: null,
+        targetStudentId: null,
         newLogText: '',
         toasts: [],
         confirmModal: { show: false, title: '', message: '', onConfirm: null },
@@ -39,8 +40,14 @@ document.addEventListener('alpine:init', () => {
                 { title: 'Tiêu bản tự chọn', maxScore: 5, note: 'Vẽ hình và trình bày' },
                 { title: 'Bài thi chỉ định', maxScore: 5, note: 'Quan sát đặc điểm' }
             ]
-        }, // <--- Dấu phẩy ở đây đã được bổ sung
-        picker: { rawExamList: "Đề 1\nĐề 2\nĐề 3\nĐề 4\nĐề 5\nĐề 6\nĐề 7\nĐề 8", currentDisplay: "", isSpinning: false, targetStudentId: "" },
+        },
+        picker: { 
+            rawExamList: "Đề 1\nĐề 2\nĐề 3\nĐề 4\nĐề 5\nĐề 6\nĐề 7\nĐề 8", 
+            currentDisplay: "", 
+            isSpinning: false, 
+            targetStudentId: "",
+            allowDuplicate: false 
+        },
         students: [],
         newStudent: { mssv: '', hoLot: '', ten: '', className: '' },
         logs: [],
@@ -79,6 +86,15 @@ document.addEventListener('alpine:init', () => {
         getExamListArray() { return pickerModule.getExamListArray(this); },
         getAvailableExams() { return this.getExamListArray(); },
         startRandomDraw() { pickerModule.startRandomDraw(this); },
+        handleTargetStudentChange() {
+            const totalExams = this.getExamListArray().length;
+            const totalStudents = this.students.length;
+            
+            if (this.picker.targetStudentId === 'ALL' && totalExams < totalStudents && totalStudents > 0) {
+                this.picker.allowDuplicate = true;
+                this.triggerToast(`Số lượng đề (${totalExams}) ít hơn số SV (${totalStudents}). Đã tự động bật cho phép trùng đề!`, 'warning');
+            }
+        },
 
         // Student actions
         openGradingModal(st) { studentModule.openGradingModal(this, st); },
@@ -87,11 +103,7 @@ document.addEventListener('alpine:init', () => {
         saveManualStudent() { studentModule.saveManualStudent(this); },
         confirmDeleteStudent(st) { studentModule.confirmDeleteStudent(this, st); },
 
-        // Config actions
-        getTotalPoints() { return configModule.getTotalPoints(this); },
-        addSection() { configModule.addSection(this); },
-        removeSection(idx) { configModule.removeSection(this, idx); },
-
+        // Validation & Lưu Chấm điểm
         hasGradingError() {
             if (!this.activeStudent || !this.activeStudent.scores || !this.config.sections) return false;
             return this.config.sections.some((sec, idx) => {
@@ -106,13 +118,11 @@ document.addEventListener('alpine:init', () => {
                 return;
             }
         
-            // Tìm thí sinh gốc trong danh sách chính và áp dụng điểm từ bản sao
             const target = this.students.find(s => s.id === this.targetStudentId || s.id === (this.activeStudent && this.activeStudent.id));
             if (target) {
                 target.scores = [...this.activeStudent.scores];
                 target.totalScore = this.activeStudent.totalScore;
                 
-                // Chỉ lưu vào LocalStorage khi bấm Hoàn Tất & Lưu hợp lệ
                 this.saveToLocalStorage();
                 this.triggerToast("Đã lưu bảng điểm thành công!", "success");
             }
@@ -120,6 +130,11 @@ document.addEventListener('alpine:init', () => {
             this.showGradingModal = false;
             this.activeStudent = null;
         },
+
+        // Config actions
+        getTotalPoints() { return configModule.getTotalPoints(this); },
+        addSection() { configModule.addSection(this); },
+        removeSection(idx) { configModule.removeSection(this, idx); },
 
         // Print A4 Sheet action
         printExamSheet() {
