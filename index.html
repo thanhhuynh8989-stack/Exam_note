@@ -13,6 +13,8 @@
     
     <!-- SheetJS (xlsx) cho Excel Import/Export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- QRCode.js cho tính năng quét mã tham gia phòng nhanh -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
     <!-- Custom Stylesheet -->
     <link rel="stylesheet" href="style.css">
@@ -68,6 +70,108 @@
                 <button @click="confirmModal.show = false" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all">Hủy Bỏ</button>
                 <button @click="executeConfirmAction()" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs rounded-xl transition-all shadow-md">Đồng Ý</button>
             </div>
+        </div>
+    </div>
+
+    <!-- MODAL: P2P LIVE SYNC (ĐỒNG BỘ TRỰC TIẾP ĐA THIẾT BỊ) -->
+    <div x-show="syncState.showModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5" @click.away="syncState.showModal = false">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+                        <i class="fa-solid fa-tower-broadcast"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900">Đồng Bộ Trực Tiếp (Live P2P)</h3>
+                        <p class="text-[11px] text-slate-500">Kết nối đa thiết bị tức thì không cần cài đặt</p>
+                    </div>
+                </div>
+                <button @click="syncState.showModal = false" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- TRẠNG THÁI CHƯA KẾT NỐI -->
+            <template x-if="syncState.status === 'disconnected'">
+                <div class="space-y-4">
+                    <!-- Option 1: Mở cổng chia sẻ (Host) -->
+                    <div class="p-4 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-blue-900"><i class="fa-solid fa-display mr-1.5"></i>Thiết Bị Chính (Phòng Thi)</span>
+                            <span class="text-[10px] font-bold px-2 py-0.5 bg-blue-600 text-white rounded-full">HOST</span>
+                        </div>
+                        <p class="text-[11px] text-slate-600">Tạo mã phòng & mã QR để điện thoại / máy tính bảng khác quét và theo dõi, chấm điểm cùng lúc.</p>
+                        <button @click="startLiveSyncHost()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-wifi"></i>
+                            <span>Bật Cổng Chia Sẻ Trực Tiếp</span>
+                        </button>
+                    </div>
+
+                    <div class="relative flex py-1 items-center">
+                        <div class="flex-grow border-t border-slate-200"></div>
+                        <span class="flex-shrink mx-3 text-[11px] font-bold text-slate-400 uppercase">Hoặc</span>
+                        <div class="flex-grow border-t border-slate-200"></div>
+                    </div>
+
+                    <!-- Option 2: Tham gia phòng có sẵn (Guest) -->
+                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-800"><i class="fa-solid fa-mobile-screen-button mr-1.5"></i>Thiết Bị Phụ (Giám Thị 2)</span>
+                            <span class="text-[10px] font-bold px-2 py-0.5 bg-slate-200 text-slate-700 rounded-full">GUEST</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500">Nhập mã phòng đang hiển thị trên máy chính để đồng bộ dữ liệu 2 chiều.</p>
+                        <div class="flex space-x-2">
+                            <input type="text" x-model="syncState.inputCode" @keydown.enter="joinLiveSyncRoom()" placeholder="VD: THI-4829" class="flex-grow text-xs font-mono font-bold uppercase p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
+                            <button @click="joinLiveSyncRoom()" class="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all">
+                                Kết Nối
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <!-- TRẠNG THÁI ĐANG KẾT NỐI -->
+            <template x-if="syncState.status === 'connecting'">
+                <div class="py-8 text-center space-y-3">
+                    <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-600"></i>
+                    <p class="text-xs font-bold text-slate-700" x-text="`Đang thiết lập kênh kết nối phòng ${syncState.roomCode}...`"></p>
+                </div>
+            </template>
+
+            <!-- TRẠNG THÁI ĐÃ KẾT NỐI -->
+            <template x-if="syncState.status === 'connected'">
+                <div class="space-y-4">
+                    <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-center space-y-3">
+                        <div class="inline-flex items-center space-x-1.5 px-3 py-1 bg-emerald-600 text-white text-[11px] font-bold rounded-full">
+                            <span class="w-2 h-2 bg-white rounded-full animate-ping"></span>
+                            <span x-text="syncState.role === 'host' ? 'ĐANG PHÁT TRỰC TIẾP (HOST)' : 'ĐÃ KẾT NỐI ĐỒNG BỘ (GUEST)'"></span>
+                        </div>
+
+                        <div>
+                            <div class="text-[11px] text-slate-500 font-semibold">Mã Phòng Thi:</div>
+                            <div class="flex items-center justify-center space-x-2 mt-0.5">
+                                <span class="text-2xl font-black font-mono tracking-wider text-slate-900" x-text="syncState.roomCode"></span>
+                                <button @click="copySyncCode()" title="Sao chép mã phòng" class="p-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-600 text-xs">
+                                    <i class="fa-regular fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Khung hiển thị mã QR (Chỉ hiện trên Host) -->
+                        <div x-show="syncState.role === 'host'" class="flex flex-col items-center pt-1">
+                            <div id="p2p-qrcode-box" class="p-2.5 bg-white rounded-xl border border-slate-200 shadow-sm"></div>
+                            <p class="text-[11px] text-slate-500 mt-2">Dùng Camera điện thoại quét mã QR để mở ngay trên thiết bị khác</p>
+                            <div class="mt-2 text-xs font-bold text-emerald-700">
+                                <i class="fa-solid fa-users mr-1"></i> Thiết bị đang kết nối: <span x-text="syncState.peerCount">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button @click="disconnectLiveSync()" class="w-full py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-xs rounded-xl transition-all">
+                        <i class="fa-solid fa-plug-circle-xmark mr-1.5"></i> Ngắt Kết Nối Đồng Bộ
+                    </button>
+                </div>
+            </template>
         </div>
     </div>
 
@@ -153,16 +257,29 @@
                         <i class="fa-solid fa-clock-rotate-left text-lg sm:text-xl"></i>
                     </div>
                     <div>
-                        <h1 class="font-bold text-sm sm:text-lg leading-tight tracking-wide text-white truncate max-w-[200px] sm:max-w-none" 
+                        <h1 class="font-bold text-sm sm:text-lg leading-tight tracking-wide text-white truncate max-w-[160px] sm:max-w-none" 
                             x-text="config.examTitle || 'SỔ GIÁM SÁT THI'"></h1>
-                        <p class="text-[11px] text-slate-400 font-medium">
+                        <p class="text-[11px] text-slate-400 font-medium hidden sm:block">
                             <span x-text="config.subjectName || 'Môn học chưa đặt'"></span> • Phòng: <span class="text-slate-200 font-semibold" x-text="config.roomName || 'P.01'"></span> • Giờ thi: <span class="text-amber-300 font-semibold" x-text="config.examTime || '--:--'"></span>
                         </p>
                     </div>
                 </div>
 
-                <div class="flex items-center space-x-3 sm:space-x-4">
-                    <div class="text-right border-r border-slate-700 pr-3 sm:pr-4">
+                <div class="flex items-center space-x-2 sm:space-x-4">
+                    <!-- NÚT MỞ CỔNG ĐỒNG BỘ TRỰC TIẾP P2P -->
+                    <button @click="syncState.showModal = true" 
+                            class="flex items-center space-x-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all"
+                            :class="syncState.status === 'connected' 
+                                ? 'bg-emerald-600/20 border-emerald-500 text-emerald-300 hover:bg-emerald-600/30' 
+                                : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'">
+                        <i class="fa-solid fa-tower-broadcast" :class="{'animate-pulse text-emerald-400': syncState.status === 'connected'}"></i>
+                        <span x-text="syncState.status === 'connected' ? syncState.roomCode : 'Đồng Bộ'"></span>
+                        <span x-show="syncState.status === 'connected' && syncState.role === 'host'" 
+                              class="px-1.5 py-0.2 bg-emerald-500 text-slate-900 rounded-full text-[10px] font-black"
+                              x-text="syncState.peerCount"></span>
+                    </button>
+
+                    <div class="text-right border-r border-slate-700 pr-2 sm:pr-4 hidden md:block">
                         <div class="text-[10px] sm:text-xs text-slate-400 font-medium">Giờ Hệ Thống</div>
                         <div class="text-xs sm:text-sm font-mono font-bold text-emerald-400" x-text="currentSystemTime">--:--:--</div>
                     </div>
