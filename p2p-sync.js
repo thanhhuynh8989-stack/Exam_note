@@ -1,5 +1,3 @@
-// p2p-sync.js - Module Đồng bộ Thời gian thực P2P (WebRTC / PeerJS)
-
 export class P2PSyncManager {
     constructor(options = {}) {
         this.prefix = options.prefix || 'SGS-EXAM-';
@@ -9,10 +7,29 @@ export class P2PSyncManager {
         this.connections = [];
         this.hostConn = null;
 
+        this.isManualDisconnect = false;
+        this.reconnectTimer = null;
+        this.reconnectAttempts = 0;
+
         this.getAppState = options.getAppState || (() => ({}));
         this.onStateReceived = options.onStateReceived || (() => {});
         this.onStatusChange = options.onStatusChange || (() => {});
         this.onToast = options.onToast || ((msg) => console.log(msg));
+
+        // Tự động kích hoạt khôi phục kết nối ngay khi trình duyệt có Internet trở lại
+        window.addEventListener('online', () => {
+            if (!this.isManualDisconnect && this.roomCode && this.role) {
+                this.onToast('Đã có Internet trở lại. Đang khôi phục đồng bộ...', 'info');
+                this._scheduleReconnect(500);
+            }
+        });
+
+        window.addEventListener('offline', () => {
+            if (this.role) {
+                this.onToast('Mất kết nối Internet! Dữ liệu vẫn được lưu cục bộ và sẽ tự đồng bộ khi có mạng.', 'warning');
+                this._emitStatus('reconnecting');
+            }
+        });
     }
 
     async ensurePeerLibrary() {
@@ -26,81 +43,109 @@ export class P2PSyncManager {
         });
     }
 
-    async startHost(customCode = null) {
+    // Khởi tạo hoặc khôi phục phòng thi (Host)
+    async startHost(customCode = null, isReconnect = false) {
         await this.ensurePeerLibrary();
-        this.disconnect(false);
+        this._cleanupPeerOnly();
+        this.isManualDisconnect = false;
 
         const randomDigits = Math.floor(1000 + Math.random() * 9000);
-        this.roomCode = customCode || `THI-${randomDigits}`;
-        const peerId = `${this.prefix}${this.roomCode}`;
+        this.roomCode = customCode || this.roomCode || `THI-${randomDigits}`;
+        this.role = 'host';
+        this._saveSession();
 
-        this.onStatusChange({ status: 'connecting', role: 'host', roomCode: this.roomCode, peerCount: 0 });
+        const peerId = `${this.prefix}${this.roomCode}`;
+        this._emitStatus(isReconnect ? 'reconnecting' : 'connecting');
 
         this.peer = new window.Peer(peerId, { debug: 1 });
 
         this.peer.on('open', () => {
-            this.role = 'host';
-            this.onStatusChange({
-                status: 'connected',
-                role: 'host',
-                roomCode: this.roomCode,
-                peerCount: 0,
-                joinUrl: this.buildJoinUrl(this.roomCode)
-            });
-            this.onToast(`Đã mở cổng đồng bộ: ${this.roomCode}`, 'success');
+            this.reconnectAttempts = 0;
+            this._clearReconnectTimer();
+            this._emitStatus('connected');
+            if (!isReconnect) {
+                this.onToast(`Đã mở cổng đồng bộ: ${this.roomCode}`, 'success');
+            } else {
+                this.onToast(`Đã khôi phục phòng đồng bộ ${this.roomCode}`, 'success');
+            }
         });
 
         this.peer.on('connection', (conn) => {
             conn.on('open', () => {
+                // Tránh trùng kết nối từ cùng 1 peer
+                this.connections = this.connections.filter(c => c.peer !== conn.peer);
                 this.connections.push(conn);
-                this._notifyHostPeerCount();
+                this._emitStatus('connected');
                 this.onToast('Một thiết bị giám thị vừa kết nối!', 'info');
 
+                // Gửi trạng thái hiện tại của Host kèm cờ isInitialSync để Guest thực hiện Smart Merge
                 conn.send({
-                    type: 'FULL_SYNC',
+                    type: 'SYNC_STATE',
                     payload: this.getAppState(),
+                    senderRole: 'host',
+                    isInitialSync: true,
                     timestamp: Date.now()
                 });
             });
 
             conn.on('data', (data) => {
-                if (data && data.type === 'FULL_SYNC') {
-                    this.onStateReceived(data.payload);
-                    this.broadcast(data.payload, conn.peer);
+                if (data && data.type === 'SYNC_STATE') {
+                    // Host nhận dữ liệu từ Guest -> Hợp nhất thông minh (Smart Merge) vào Host
+                    this.onStateReceived(data.payload, {
+                        senderRole: data.senderRole || 'guest',
+                        isInitialSync: !!data.isInitialSync
+                    });
+
+                    // Phát tán bản đã hợp nhất hoàn chỉnh cho toàn bộ các máy (bao gồm cả máy vừa gửi)
+                    this.broadcast(this.getAppState(), null, false);
                 }
             });
 
             conn.on('close', () => {
                 this.connections = this.connections.filter(c => c.peer !== conn.peer);
-                this._notifyHostPeerCount();
-                this.onToast('Một thiết bị đã ngắt kết nối.', 'warning');
+                this._emitStatus('connected');
             });
         });
 
+        this.peer.on('disconnected', () => {
+            if (!this.isManualDisconnect) {
+                this._emitStatus('reconnecting');
+                this._scheduleReconnect(3000);
+            }
+        });
+
         this.peer.on('error', (err) => {
-            if (err.type === 'unavailable-id') {
+            if (this.isManualDisconnect) return;
+
+            if (err.type === 'unavailable-id' && !isReconnect) {
+                this.roomCode = null;
                 this.startHost();
             } else {
-                this.onToast(`Lỗi kết nối P2P: ${err.type}`, 'error');
-                this.disconnect(false);
+                // Lỗi mạng / server signaling tạm thời -> thử đăng ký lại đúng mã phòng cũ
+                this._emitStatus('reconnecting');
+                this._scheduleReconnect(4000);
             }
         });
     }
 
-    async joinRoom(rawCode) {
-        const cleanCode = (rawCode || '').trim().toUpperCase();
+    // Tham gia hoặc tự kết nối lại phòng thi (Guest)
+    async joinRoom(rawCode, isReconnect = false) {
+        const cleanCode = (rawCode || this.roomCode || '').trim().toUpperCase();
         if (!cleanCode) {
             this.onToast('Vui lòng nhập mã phòng thi!', 'warning');
             return;
         }
 
         await this.ensurePeerLibrary();
-        this.disconnect(false);
+        this._cleanupPeerOnly();
+        this.isManualDisconnect = false;
 
         this.roomCode = cleanCode;
-        const targetPeerId = `${this.prefix}${cleanCode}`;
+        this.role = 'guest';
+        this._saveSession();
 
-        this.onStatusChange({ status: 'connecting', role: 'guest', roomCode: cleanCode, peerCount: 0 });
+        const targetPeerId = `${this.prefix}${cleanCode}`;
+        this._emitStatus(isReconnect ? 'reconnecting' : 'connecting');
 
         this.peer = new window.Peer({ debug: 1 });
 
@@ -109,40 +154,72 @@ export class P2PSyncManager {
             this.hostConn = conn;
 
             conn.on('open', () => {
-                this.role = 'guest';
-                this.onStatusChange({
-                    status: 'connected',
-                    role: 'guest',
-                    roomCode: cleanCode,
-                    peerCount: 1
+                this.reconnectAttempts = 0;
+                this._clearReconnectTimer();
+                this._emitStatus('connected');
+                this.onToast(
+                    isReconnect ? `Đã tự động kết nối lại phòng ${cleanCode}` : `Đã đồng bộ trực tiếp với phòng ${cleanCode}`,
+                    'success'
+                );
+
+                // Gửi dữ liệu cục bộ hiện tại lên Host để Host hợp nhất điểm chấm lúc rớt mạng (nếu có)
+                conn.send({
+                    type: 'SYNC_STATE',
+                    payload: this.getAppState(),
+                    senderRole: 'guest',
+                    isInitialSync: true,
+                    timestamp: Date.now()
                 });
-                this.onToast(`Đã đồng bộ trực tiếp với phòng ${cleanCode}`, 'success');
             });
 
             conn.on('data', (data) => {
-                if (data && data.type === 'FULL_SYNC') {
-                    this.onStateReceived(data.payload);
+                if (data && data.type === 'SYNC_STATE') {
+                    this.onStateReceived(data.payload, {
+                        senderRole: data.senderRole || 'host',
+                        isInitialSync: !!data.isInitialSync
+                    });
                 }
             });
 
             conn.on('close', () => {
-                this.onToast('Mất kết nối với máy chủ phòng thi!', 'error');
-                this.disconnect(false);
+                if (!this.isManualDisconnect) {
+                    this._emitStatus('reconnecting');
+                    this._scheduleReconnect(3500);
+                }
+            });
+
+            conn.on('error', () => {
+                if (!this.isManualDisconnect) {
+                    this._emitStatus('reconnecting');
+                    this._scheduleReconnect(4000);
+                }
             });
         });
 
+        this.peer.on('disconnected', () => {
+            if (!this.isManualDisconnect) {
+                this._emitStatus('reconnecting');
+                this._scheduleReconnect(3500);
+            }
+        });
+
         this.peer.on('error', (err) => {
-            this.onToast(`Không tìm thấy phòng ${cleanCode} (${err.type})`, 'error');
-            this.disconnect(false);
+            if (this.isManualDisconnect) return;
+            // Nếu chưa tìm thấy Host (do Host cũng đang rớt mạng), tiếp tục thử lại định kỳ
+            this._emitStatus('reconnecting');
+            this._scheduleReconnect(4000);
         });
     }
 
-    broadcast(statePayload, excludePeerId = null) {
+    // Phát tán dữ liệu
+    broadcast(statePayload, excludePeerId = null, isInitialSync = false) {
         if (!this.role) return;
 
         const message = {
-            type: 'FULL_SYNC',
+            type: 'SYNC_STATE',
             payload: statePayload,
+            senderRole: this.role,
+            isInitialSync,
             timestamp: Date.now()
         };
 
@@ -157,22 +234,17 @@ export class P2PSyncManager {
         }
     }
 
+    // Chủ động ngắt kết nối (dừng Auto-Reconnect)
     disconnect(notify = true) {
-        if (this.hostConn) {
-            this.hostConn.close();
-            this.hostConn = null;
-        }
-        this.connections.forEach(c => c.close());
-        this.connections = [];
-
-        if (this.peer) {
-            this.peer.destroy();
-            this.peer = null;
-        }
+        this.isManualDisconnect = true;
+        this._clearReconnectTimer();
+        this._cleanupPeerOnly();
+        this._clearSession();
 
         this.role = null;
         this.roomCode = null;
-        this.onStatusChange({ status: 'disconnected', role: null, roomCode: null, peerCount: 0 });
+        this.reconnectAttempts = 0;
+        this._emitStatus('disconnected');
         if (notify) this.onToast('Đã tắt đồng bộ trực tiếp.', 'info');
     }
 
@@ -182,22 +254,96 @@ export class P2PSyncManager {
         return url.toString();
     }
 
+    // Kiểm tra tự động kết nối qua URL (?room=...) hoặc khôi phục phiên trước khi tải lại trang
     checkAutoJoinFromUrl() {
         const params = new URLSearchParams(window.location.search);
         const roomParam = params.get('room');
         if (roomParam) {
-            this.joinRoom(roomParam);
+            this.joinRoom(roomParam, false);
             window.history.replaceState({}, document.title, window.location.pathname);
+            return;
+        }
+
+        const saved = this._loadSession();
+        if (saved && saved.roomCode && saved.role) {
+            if (saved.role === 'host') {
+                this.startHost(saved.roomCode, true);
+            } else if (saved.role === 'guest') {
+                this.joinRoom(saved.roomCode, true);
+            }
         }
     }
 
-    _notifyHostPeerCount() {
+    _scheduleReconnect(delayMs = 3500) {
+        if (this.isManualDisconnect || !this.roomCode || !this.role) return;
+        this._clearReconnectTimer();
+
+        this.reconnectAttempts += 1;
+        this.reconnectTimer = setTimeout(() => {
+            if (this.isManualDisconnect) return;
+            if (this.role === 'host') {
+                this.startHost(this.roomCode, true);
+            } else if (this.role === 'guest') {
+                this.joinRoom(this.roomCode, true);
+            }
+        }, delayMs);
+    }
+
+    _clearReconnectTimer() {
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
+    }
+
+    _cleanupPeerOnly() {
+        if (this.hostConn) {
+            try { this.hostConn.close(); } catch (_) {}
+            this.hostConn = null;
+        }
+        this.connections.forEach(c => {
+            try { c.close(); } catch (_) {}
+        });
+        this.connections = [];
+
+        if (this.peer) {
+            try { this.peer.destroy(); } catch (_) {}
+            this.peer = null;
+        }
+    }
+
+    _emitStatus(status) {
         this.onStatusChange({
-            status: 'connected',
-            role: 'host',
+            status,
+            role: this.role,
             roomCode: this.roomCode,
             peerCount: this.connections.length,
-            joinUrl: this.buildJoinUrl(this.roomCode)
+            reconnectAttempts: this.reconnectAttempts,
+            joinUrl: (this.role === 'host' && this.roomCode) ? this.buildJoinUrl(this.roomCode) : null
         });
+    }
+
+    _saveSession() {
+        try {
+            sessionStorage.setItem('SGS_P2P_SESSION', JSON.stringify({
+                role: this.role,
+                roomCode: this.roomCode
+            }));
+        } catch (_) {}
+    }
+
+    _loadSession() {
+        try {
+            const raw = sessionStorage.getItem('SGS_P2P_SESSION');
+            return raw ? JSON.parse(raw) : null;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    _clearSession() {
+        try {
+            sessionStorage.removeItem('SGS_P2P_SESSION');
+        } catch (_) {}
     }
 }
