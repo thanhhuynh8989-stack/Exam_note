@@ -4,6 +4,7 @@ import { studentModule } from './js/student.module.js';
 import { configModule } from './js/config.module.js';
 import { storageModule } from './js/storage.module.js';
 import { printModule } from './js/print.module.js';
+import { P2PSyncManager } from './js/p2p-sync.module.js';
 
 // Lắng nghe sự kiện Alpine khởi tạo
 document.addEventListener('alpine:init', () => {
@@ -19,6 +20,18 @@ document.addEventListener('alpine:init', () => {
         newLogText: '',
         toasts: [],
         confirmModal: { show: false, title: '', message: '', onConfirm: null },
+
+        // Trạng thái cổng Đồng bộ trực tiếp P2P
+        syncState: {
+            showModal: false,
+            status: 'disconnected', // 'disconnected' | 'connecting' | 'connected'
+            role: null,             // 'host' | 'guest' | null
+            roomCode: '',
+            inputCode: '',
+            peerCount: 0
+        },
+        _syncManager: null,
+        _isApplyingRemote: false,
         
         timer: { timeLeft: 60 * 60, isRunning: false, intervalId: null },
         config: {
@@ -58,6 +71,91 @@ document.addEventListener('alpine:init', () => {
             if (!this.timer.timeLeft || this.timer.timeLeft <= 0) {
                 this.timer.timeLeft = (this.config.durationMinutes || 45) * 60;
             }
+            this.initSyncModule();
+        },
+
+        // Khởi tạo module đồng bộ P2P (WebRTC / PeerJS)
+        initSyncModule() {
+            this._syncManager = new P2PSyncManager({
+                prefix: 'SGS-EXAM-',
+                getAppState: () => ({
+                    config: JSON.parse(JSON.stringify(this.config)),
+                    timer: {
+                        timeLeft: this.timer.timeLeft,
+                        isRunning: this.timer.isRunning
+                    },
+                    students: JSON.parse(JSON.stringify(this.students)),
+                    picker: {
+                        rawExamList: this.picker.rawExamList,
+                        currentDisplay: this.picker.currentDisplay,
+                        allowDuplicate: this.picker.allowDuplicate
+                    },
+                    logs: JSON.parse(JSON.stringify(this.logs))
+                }),
+                onStateReceived: (remote) => {
+                    this._isApplyingRemote = true;
+                    try {
+                        if (remote.config) Object.assign(this.config, remote.config);
+                        if (Array.isArray(remote.students)) this.students = remote.students;
+                        if (Array.isArray(remote.logs)) this.logs = remote.logs;
+                        if (remote.picker) Object.assign(this.picker, remote.picker);
+                        
+                        if (remote.timer) {
+                            this.timer.timeLeft = remote.timer.timeLeft;
+                            // Đồng bộ trạng thái chạy/dừng đồng hồ giữa các thiết bị
+                            if (remote.timer.isRunning && !this.timer.isRunning) {
+                                this.toggleTimer();
+                            } else if (!remote.timer.isRunning && this.timer.isRunning) {
+                                this.toggleTimer();
+                            }
+                        }
+                        storageModule.saveToLocalStorage(this);
+                    } finally {
+                        this._isApplyingRemote = false;
+                    }
+                },
+                onStatusChange: (info) => {
+                    this.syncState.status = info.status;
+                    this.syncState.role = info.role;
+                    this.syncState.roomCode = info.roomCode || '';
+                    this.syncState.peerCount = info.peerCount || 0;
+
+                    if (info.joinUrl) {
+                        this.$nextTick(() => {
+                            const qrBox = document.getElementById('p2p-qrcode-box');
+                            if (qrBox && window.QRCode) {
+                                qrBox.innerHTML = '';
+                                new window.QRCode(qrBox, { text: info.joinUrl, width: 160, height: 160 });
+                            }
+                        });
+                    }
+                },
+                onToast: (msg, type) => this.triggerToast(msg, type)
+            });
+
+            // Tự động kết nối nếu mở từ đường dẫn quét QR (?room=THI-XXXX)
+            this._syncManager.checkAutoJoinFromUrl();
+        },
+
+        // Các hàm điều khiển nút bấm trong Modal Đồng bộ
+        startLiveSyncHost() {
+            this._syncManager?.startHost();
+        },
+        joinLiveSyncRoom() {
+            this._syncManager?.joinRoom(this.syncState.inputCode);
+        },
+        disconnectLiveSync() {
+            this._syncManager?.disconnect(true);
+        },
+        copySyncCode() {
+            if (!this.syncState.roomCode) return;
+            navigator.clipboard.writeText(this.syncState.roomCode);
+            this.triggerToast(`Đã sao chép mã phòng: ${this.syncState.roomCode}`, 'success');
+        },
+        broadcastSyncState() {
+            if (!this._isApplyingRemote && this._syncManager) {
+                this._syncManager.broadcast(this._syncManager.getAppState());
+            }
         },
 
         triggerToast(message, type = 'info') {
@@ -75,15 +173,36 @@ document.addEventListener('alpine:init', () => {
             else if (document.exitFullscreen) document.exitFullscreen();
         },
 
-        // Timer actions
-        toggleTimer() { timerModule.toggleTimer(this); },
-        resetTimer() { timerModule.resetTimer(this); },
-        adjustHours(amount) { timerModule.adjustHours(this, amount); },
-        adjustMinutes(amount) { timerModule.adjustMinutes(this, amount); },
-        addExtraMinutes(mins) { timerModule.addExtraMinutes(this, mins); },
-        setQuickDuration(mins) { timerModule.setQuickDuration(this, mins); },
+        // Timer actions (kèm phát tán trạng thái đồng bộ khi thao tác trực tiếp)
+        toggleTimer() {
+            timerModule.toggleTimer(this);
+            this.broadcastSyncState();
+        },
+        resetTimer() {
+            timerModule.resetTimer(this);
+            this.broadcastSyncState();
+        },
+        adjustHours(amount) {
+            timerModule.adjustHours(this, amount);
+            this.broadcastSyncState();
+        },
+        adjustMinutes(amount) {
+            timerModule.adjustMinutes(this, amount);
+            this.broadcastSyncState();
+        },
+        addExtraMinutes(mins) {
+            timerModule.addExtraMinutes(this, mins);
+            this.broadcastSyncState();
+        },
+        setQuickDuration(mins) {
+            timerModule.setQuickDuration(this, mins);
+            this.broadcastSyncState();
+        },
         formatTime(s) { return timerModule.formatTime(s); },
-        addLog() { timerModule.addLog(this); },
+        addLog() {
+            timerModule.addLog(this);
+            this.broadcastSyncState();
+        },
 
         // Picker actions
         getExamListArray() { return pickerModule.getExamListArray(this); },
@@ -158,11 +277,16 @@ document.addEventListener('alpine:init', () => {
                     localStorage.removeItem('EXAM_MONITOR_DATA_V5');
                     this.students = [];
                     this.logs = [];
+                    this.broadcastSyncState();
                     this.triggerToast("Đã xóa bản nháp thành công!", "info");
                 }
             };
         },
-        saveToLocalStorage() { storageModule.saveToLocalStorage(this); },
+        saveToLocalStorage() {
+            storageModule.saveToLocalStorage(this);
+            // Tự động phát tán dữ liệu sang các máy khác mỗi khi bất kỳ module nào gọi saveToLocalStorage()
+            this.broadcastSyncState();
+        },
         loadFromLocalStorage() { storageModule.loadFromLocalStorage(this); },
 
         // Helpers
