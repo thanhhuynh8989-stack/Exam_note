@@ -72,7 +72,7 @@
             </div>
         </div>
     </div>
-
+   
     <!-- MODAL: P2P LIVE SYNC (ĐỒNG BỘ TRỰC TIẾP ĐA THIẾT BỊ) -->
     <div x-show="syncState.showModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
         <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5" @click.away="syncState.showModal = false">
@@ -130,11 +130,25 @@
                 </div>
             </template>
 
-            <!-- TRẠNG THÁI ĐANG KẾT NỐI -->
+            <!-- TRẠNG THÁI ĐANG KẾT NỐI LẦN ĐẦU -->
             <template x-if="syncState.status === 'connecting'">
                 <div class="py-8 text-center space-y-3">
                     <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-600"></i>
                     <p class="text-xs font-bold text-slate-700" x-text="`Đang thiết lập kênh kết nối phòng ${syncState.roomCode}...`"></p>
+                </div>
+            </template>
+
+            <!-- TRẠNG THÁI MẤT MẠNG & ĐANG TỰ ĐỘNG KẾT NỐI LẠI (MỚI THÊM) -->
+            <template x-if="syncState.status === 'reconnecting'">
+                <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl text-center space-y-3">
+                    <i class="fa-solid fa-rotate fa-spin text-2xl text-amber-600"></i>
+                    <div>
+                        <p class="text-xs font-bold text-amber-900" x-text="`Mất kết nối mạng — Đang tự nối lại phòng ${syncState.roomCode}...`"></p>
+                        <p class="text-[11px] text-amber-700 mt-1">Bạn vẫn có thể tiếp tục điểm danh và chấm điểm bình thường. Dữ liệu sẽ tự động gộp ngay khi có mạng trở lại.</p>
+                    </div>
+                    <button @click="disconnectLiveSync()" class="w-full py-2 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 font-bold text-xs rounded-lg transition-all">
+                        Hủy Tự Động Kết Nối Lại
+                    </button>
                 </div>
             </template>
 
