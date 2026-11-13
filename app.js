@@ -24,7 +24,7 @@ document.addEventListener('alpine:init', () => {
         // Trạng thái cổng Đồng bộ trực tiếp P2P
         syncState: {
             showModal: false,
-            status: 'disconnected', // 'disconnected' | 'connecting' | 'connected'
+            status: 'disconnected', // 'disconnected' | 'connecting' | 'connected' | 'reconnecting'
             role: null,             // 'host' | 'guest' | null
             roomCode: '',
             inputCode: '',
@@ -32,6 +32,7 @@ document.addEventListener('alpine:init', () => {
         },
         _syncManager: null,
         _isApplyingRemote: false,
+        _lastSavedStudents: [],
         
         timer: { timeLeft: 60 * 60, isRunning: false, intervalId: null },
         config: {
@@ -68,13 +69,14 @@ document.addEventListener('alpine:init', () => {
         initApp() {
             setInterval(() => { this.currentSystemTime = new Date().toLocaleTimeString('vi-VN'); }, 1000);
             this.loadFromLocalStorage();
+            this._lastSavedStudents = JSON.parse(JSON.stringify(this.students || []));
             if (!this.timer.timeLeft || this.timer.timeLeft <= 0) {
                 this.timer.timeLeft = (this.config.durationMinutes || 45) * 60;
             }
             this.initSyncModule();
         },
 
-        // Khởi tạo module đồng bộ P2P (WebRTC / PeerJS)
+        // Khởi tạo module đồng bộ P2P (WebRTC / PeerJS) có Auto-Reconnect & Smart Merge
         initSyncModule() {
             this._syncManager = new P2PSyncManager({
                 prefix: 'SGS-EXAM-',
@@ -92,24 +94,12 @@ document.addEventListener('alpine:init', () => {
                     },
                     logs: JSON.parse(JSON.stringify(this.logs))
                 }),
-                onStateReceived: (remote) => {
+                onStateReceived: (remote, meta = {}) => {
                     this._isApplyingRemote = true;
                     try {
-                        if (remote.config) Object.assign(this.config, remote.config);
-                        if (Array.isArray(remote.students)) this.students = remote.students;
-                        if (Array.isArray(remote.logs)) this.logs = remote.logs;
-                        if (remote.picker) Object.assign(this.picker, remote.picker);
-                        
-                        if (remote.timer) {
-                            this.timer.timeLeft = remote.timer.timeLeft;
-                            // Đồng bộ trạng thái chạy/dừng đồng hồ giữa các thiết bị
-                            if (remote.timer.isRunning && !this.timer.isRunning) {
-                                this.toggleTimer();
-                            } else if (!remote.timer.isRunning && this.timer.isRunning) {
-                                this.toggleTimer();
-                            }
-                        }
+                        this.mergeRemoteState(remote, meta);
                         storageModule.saveToLocalStorage(this);
+                        this._lastSavedStudents = JSON.parse(JSON.stringify(this.students));
                     } finally {
                         this._isApplyingRemote = false;
                     }
@@ -133,8 +123,92 @@ document.addEventListener('alpine:init', () => {
                 onToast: (msg, type) => this.triggerToast(msg, type)
             });
 
-            // Tự động kết nối nếu mở từ đường dẫn quét QR (?room=THI-XXXX)
+            // Tự động kết nối nếu mở từ đường dẫn quét QR (?room=THI-XXXX) hoặc khôi phục phiên
             this._syncManager.checkAutoJoinFromUrl();
+        },
+
+        // Gắn dấu thời gian cập nhật (updatedAt) cho từng sinh viên khi điểm danh, bốc đề hoặc chấm điểm
+        stampStudentUpdates(prevStudents, nextStudents) {
+            const now = Date.now();
+            const prevMap = new Map((prevStudents || []).map(s => [s.id || s.mssv, s]));
+
+            return (nextStudents || []).map(st => {
+                const key = st.id || st.mssv;
+                const old = prevMap.get(key);
+                if (!old) {
+                    return { ...st, updatedAt: st.updatedAt || now };
+                }
+                const changed =
+                    old.isPresent !== st.isPresent ||
+                    old.assignedExam !== st.assignedExam ||
+                    old.totalScore !== st.totalScore ||
+                    JSON.stringify(old.scores || []) !== JSON.stringify(st.scores || []);
+
+                return {
+                    ...st,
+                    updatedAt: changed ? now : (st.updatedAt || old.updatedAt || now)
+                };
+            });
+        },
+
+        // Bộ hợp nhất dữ liệu thông minh (Smart Merge) giữa các thiết bị khi tái kết nối
+        mergeRemoteState(remote, meta = {}) {
+            const isHost = this.syncState.role === 'host';
+            const isInitial = !!meta.isInitialSync;
+
+            // 1. Cấu hình, Danh sách đề & Đồng hồ:
+            // Khi tái kết nối (isInitialSync), Host giữ quyền chuẩn về đồng hồ & cấu hình;
+            // Khi đang kết nối trực tiếp bình thường, nhận cập nhật từ máy vừa thao tác.
+            if (remote.config && (!isInitial || !isHost)) {
+                Object.assign(this.config, remote.config);
+            }
+
+            if (remote.picker && (!isInitial || !isHost)) {
+                Object.assign(this.picker, remote.picker);
+            }
+
+            if (remote.timer && (!isInitial || !isHost)) {
+                this.timer.timeLeft = remote.timer.timeLeft;
+                if (remote.timer.isRunning && !this.timer.isRunning) {
+                    timerModule.toggleTimer(this);
+                } else if (!remote.timer.isRunning && this.timer.isRunning) {
+                    timerModule.toggleTimer(this);
+                }
+            }
+
+            // 2. Hợp nhất danh sách Sinh viên (giữ bản ghi có updatedAt mới nhất cho từng SV)
+            if (Array.isArray(remote.students)) {
+                const mergedMap = new Map();
+
+                this.students.forEach(localSt => {
+                    const key = localSt.id || localSt.mssv;
+                    mergedMap.set(key, { ...localSt, updatedAt: localSt.updatedAt || 0 });
+                });
+
+                remote.students.forEach(remoteSt => {
+                    const key = remoteSt.id || remoteSt.mssv;
+                    const localSt = mergedMap.get(key);
+                    const remoteTime = remoteSt.updatedAt || 0;
+
+                    if (!localSt || remoteTime >= (localSt.updatedAt || 0)) {
+                        mergedMap.set(key, { ...remoteSt, updatedAt: remoteTime });
+                    }
+                });
+
+                this.students = Array.from(mergedMap.values());
+            }
+
+            // 3. Hợp nhất Nhật ký phòng thi (gộp đủ cả 2 máy, loại bỏ dòng trùng)
+            if (Array.isArray(remote.logs)) {
+                const seen = new Set();
+                const combined = [...this.logs, ...remote.logs].filter(item => {
+                    const sig = `${item.time}|${item.text}`;
+                    if (seen.has(sig)) return false;
+                    seen.add(sig);
+                    return true;
+                });
+                this.logs = combined;
+            }
         },
 
         // Các hàm điều khiển nút bấm trong Modal Đồng bộ
@@ -244,6 +318,7 @@ document.addEventListener('alpine:init', () => {
             if (target) {
                 target.scores = [...this.activeStudent.scores];
                 target.totalScore = this.activeStudent.totalScore;
+                target.updatedAt = Date.now();
                 
                 this.saveToLocalStorage();
                 this.triggerToast("Đã lưu bảng điểm thành công!", "success");
@@ -277,12 +352,18 @@ document.addEventListener('alpine:init', () => {
                     localStorage.removeItem('EXAM_MONITOR_DATA_V5');
                     this.students = [];
                     this.logs = [];
+                    this._lastSavedStudents = [];
                     this.broadcastSyncState();
                     this.triggerToast("Đã xóa bản nháp thành công!", "info");
                 }
             };
         },
         saveToLocalStorage() {
+            if (!this._isApplyingRemote) {
+                this.students = this.stampStudentUpdates(this._lastSavedStudents || [], this.students);
+            }
+            this._lastSavedStudents = JSON.parse(JSON.stringify(this.students));
+
             storageModule.saveToLocalStorage(this);
             // Tự động phát tán dữ liệu sang các máy khác mỗi khi bất kỳ module nào gọi saveToLocalStorage()
             this.broadcastSyncState();
