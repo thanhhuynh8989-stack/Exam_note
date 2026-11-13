@@ -4,7 +4,7 @@ import { studentModule } from './js/student.module.js';
 import { configModule } from './js/config.module.js';
 import { storageModule } from './js/storage.module.js';
 import { printModule } from './js/print.module.js';
-import { P2PSyncManager } from './js/p2p-sync.module.js';
+import { P2PSyncManager } from './p2p-sync.js';
 
 // Lắng nghe sự kiện Alpine khởi tạo
 document.addEventListener('alpine:init', () => {
