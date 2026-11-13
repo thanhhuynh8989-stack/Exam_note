@@ -66,14 +66,32 @@ document.addEventListener('alpine:init', () => {
         newStudent: { mssv: '', hoLot: '', ten: '', className: '' },
         logs: [],
 
+        // Kiểm tra và yêu cầu mở trong trình duyệt:
+        isZaloBrowser: false,
         initApp() {
+            // Phát hiện trình duyệt nhúng của Zalo (Zalo / ZaloTheme)
+            const ua = navigator.userAgent || '';
+            if (/Zalo/i.test(ua)) {
+                this.isZaloBrowser = true;
+            }
+
             setInterval(() => { this.currentSystemTime = new Date().toLocaleTimeString('vi-VN'); }, 1000);
             this.loadFromLocalStorage();
             this._lastSavedStudents = JSON.parse(JSON.stringify(this.students || []));
             if (!this.timer.timeLeft || this.timer.timeLeft <= 0) {
                 this.timer.timeLeft = (this.config.durationMinutes || 45) * 60;
             }
-            this.initSyncModule();
+            
+            // Chỉ tự động kết nối P2P nếu không bị kẹt trong Zalo WebView
+            if (!this.isZaloBrowser) {
+                this.initSyncModule();
+            }
+        },
+
+        // 3. Thêm hàm sao chép URL hiện tại (giữ nguyên cả tham số ?room=THI-XXXX nếu quét từ QR):
+        copyCurrentUrl() {
+            navigator.clipboard.writeText(window.location.href);
+            this.triggerToast('Đã sao chép đường dẫn! Hãy dán vào Chrome hoặc Safari.', 'success');
         },
 
         // Khởi tạo module đồng bộ P2P (WebRTC / PeerJS) có Auto-Reconnect & Smart Merge
