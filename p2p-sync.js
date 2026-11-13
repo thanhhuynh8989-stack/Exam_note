@@ -2,21 +2,19 @@
 
 export class P2PSyncManager {
     constructor(options = {}) {
-        this.prefix = options.prefix || 'EXAM-';
+        this.prefix = options.prefix || 'SGS-EXAM-';
         this.peer = null;
         this.role = null; // 'host' | 'guest' | null
         this.roomCode = null;
-        this.connections = []; // Danh sách máy khách (dành cho Host)
-        this.hostConn = null;  // Kết nối tới máy chủ (dành cho Guest)
+        this.connections = [];
+        this.hostConn = null;
 
-        // Các hàm callback để giao tiếp ngược lại với giao diện chính
         this.getAppState = options.getAppState || (() => ({}));
         this.onStateReceived = options.onStateReceived || (() => {});
         this.onStatusChange = options.onStatusChange || (() => {});
         this.onToast = options.onToast || ((msg) => console.log(msg));
     }
 
-    // Tự động nạp thư viện PeerJS từ CDN nếu chưa tồn tại
     async ensurePeerLibrary() {
         if (window.Peer) return;
         return new Promise((resolve, reject) => {
@@ -28,7 +26,6 @@ export class P2PSyncManager {
         });
     }
 
-    // Khởi tạo phòng thi (Chế độ Máy chủ / Host)
     async startHost(customCode = null) {
         await this.ensurePeerLibrary();
         this.disconnect(false);
@@ -37,7 +34,7 @@ export class P2PSyncManager {
         this.roomCode = customCode || `THI-${randomDigits}`;
         const peerId = `${this.prefix}${this.roomCode}`;
 
-        this.onStatusChange({ status: 'connecting', role: 'host', roomCode: this.roomCode });
+        this.onStatusChange({ status: 'connecting', role: 'host', roomCode: this.roomCode, peerCount: 0 });
 
         this.peer = new window.Peer(peerId, { debug: 1 });
 
@@ -53,14 +50,12 @@ export class P2PSyncManager {
             this.onToast(`Đã mở cổng đồng bộ: ${this.roomCode}`, 'success');
         });
 
-        // Lắng nghe thiết bị khác kết nối vào
         this.peer.on('connection', (conn) => {
             conn.on('open', () => {
                 this.connections.push(conn);
                 this._notifyHostPeerCount();
                 this.onToast('Một thiết bị giám thị vừa kết nối!', 'info');
 
-                // Gửi ngay toàn bộ trạng thái hiện tại cho máy mới vào
                 conn.send({
                     type: 'FULL_SYNC',
                     payload: this.getAppState(),
@@ -68,11 +63,9 @@ export class P2PSyncManager {
                 });
             });
 
-            // Nhận cập nhật 2 chiều từ thiết bị phụ (điểm danh, bốc thăm...)
             conn.on('data', (data) => {
                 if (data && data.type === 'FULL_SYNC') {
                     this.onStateReceived(data.payload);
-                    // Chuyển tiếp dữ liệu mới cho các máy phụ còn lại
                     this.broadcast(data.payload, conn.peer);
                 }
             });
@@ -86,19 +79,20 @@ export class P2PSyncManager {
 
         this.peer.on('error', (err) => {
             if (err.type === 'unavailable-id') {
-                // Trùng mã phòng -> tự tạo mã khác
                 this.startHost();
             } else {
                 this.onToast(`Lỗi kết nối P2P: ${err.type}`, 'error');
-                this.disconnect();
+                this.disconnect(false);
             }
         });
     }
 
-    // Tham gia phòng thi có sẵn (Chế độ Thiết bị phụ / Guest)
     async joinRoom(rawCode) {
-        const cleanCode = rawCode.trim().toUpperCase();
-        if (!cleanCode) return;
+        const cleanCode = (rawCode || '').trim().toUpperCase();
+        if (!cleanCode) {
+            this.onToast('Vui lòng nhập mã phòng thi!', 'warning');
+            return;
+        }
 
         await this.ensurePeerLibrary();
         this.disconnect(false);
@@ -106,7 +100,7 @@ export class P2PSyncManager {
         this.roomCode = cleanCode;
         const targetPeerId = `${this.prefix}${cleanCode}`;
 
-        this.onStatusChange({ status: 'connecting', role: 'guest', roomCode: cleanCode });
+        this.onStatusChange({ status: 'connecting', role: 'guest', roomCode: cleanCode, peerCount: 0 });
 
         this.peer = new window.Peer({ debug: 1 });
 
@@ -119,7 +113,8 @@ export class P2PSyncManager {
                 this.onStatusChange({
                     status: 'connected',
                     role: 'guest',
-                    roomCode: cleanCode
+                    roomCode: cleanCode,
+                    peerCount: 1
                 });
                 this.onToast(`Đã đồng bộ trực tiếp với phòng ${cleanCode}`, 'success');
             });
@@ -132,17 +127,16 @@ export class P2PSyncManager {
 
             conn.on('close', () => {
                 this.onToast('Mất kết nối với máy chủ phòng thi!', 'error');
-                this.disconnect();
+                this.disconnect(false);
             });
         });
 
         this.peer.on('error', (err) => {
             this.onToast(`Không tìm thấy phòng ${cleanCode} (${err.type})`, 'error');
-            this.disconnect();
+            this.disconnect(false);
         });
     }
 
-    // Phát tán dữ liệu mới mỗi khi trạng thái ứng dụng thay đổi
     broadcast(statePayload, excludePeerId = null) {
         if (!this.role) return;
 
@@ -163,7 +157,6 @@ export class P2PSyncManager {
         }
     }
 
-    // Ngắt kết nối và dọn dẹp tài nguyên
     disconnect(notify = true) {
         if (this.hostConn) {
             this.hostConn.close();
@@ -183,20 +176,17 @@ export class P2PSyncManager {
         if (notify) this.onToast('Đã tắt đồng bộ trực tiếp.', 'info');
     }
 
-    // Tạo URL tham gia nhanh (dùng để sinh mã QR)
     buildJoinUrl(roomCode) {
         const url = new URL(window.location.href);
         url.searchParams.set('room', roomCode);
         return url.toString();
     }
 
-    // Tự động kiểm tra tham số ?room=XXXX trên URL khi mở trang (từ quét QR)
     checkAutoJoinFromUrl() {
         const params = new URLSearchParams(window.location.search);
         const roomParam = params.get('room');
         if (roomParam) {
             this.joinRoom(roomParam);
-            // Xóa param trên thanh địa chỉ cho gọn sau khi nhận diện
             window.history.replaceState({}, document.title, window.location.pathname);
         }
     }
