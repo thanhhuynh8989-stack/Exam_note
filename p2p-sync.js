@@ -325,17 +325,24 @@ export class P2PSyncManager {
 
     _saveSession() {
         try {
-            sessionStorage.setItem('SGS_P2P_SESSION', JSON.stringify({
+            localStorage.setItem('SGS_P2P_SESSION', JSON.stringify({
                 role: this.role,
-                roomCode: this.roomCode
+                roomCode: this.roomCode,
+                expiresAt: Date.now() + 3 * 60 * 60 * 1000
             }));
         } catch (_) {}
     }
 
     _loadSession() {
         try {
-            const raw = sessionStorage.getItem('SGS_P2P_SESSION');
-            return raw ? JSON.parse(raw) : null;
+            const raw = localStorage.getItem('SGS_P2P_SESSION');
+            if (!raw) return null;
+            const data = JSON.parse(raw);
+            if (Date.now() > data.expiresAt) {
+                this._clearSession();
+                return null;
+            }
+            return data;
         } catch (_) {
             return null;
         }
@@ -343,7 +350,7 @@ export class P2PSyncManager {
 
     _clearSession() {
         try {
-            sessionStorage.removeItem('SGS_P2P_SESSION');
+            localStorage.removeItem('SGS_P2P_SESSION');
         } catch (_) {}
     }
 }
