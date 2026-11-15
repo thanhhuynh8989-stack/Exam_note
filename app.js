@@ -13,6 +13,7 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('examApp', () => ({
         activeTab: 'timer',
         currentSystemTime: '',
+        isZaloBrowser: false,
         showAddStudentModal: false,
         showGradingModal: false,
         activeStudent: null,
@@ -51,8 +52,8 @@ document.addEventListener('alpine:init', () => {
             examiner1: 'HUỲNH NGỌC THÀNH',
             examiner2: '',
             sections: [
-                { title: 'Tiêu bản tự chọn', maxScore: 5, note: 'Vẽ hình và trình bày' },
-                { title: 'Bài thi chỉ định', maxScore: 5, note: 'Quan sát đặc điểm' }
+                { title: 'Tiêu bản tự chọn', maxScore: 5, note: 'Vẽ hình và trình bày', rounding: 'none', lastImportInfo: '' },
+                { title: 'Bài thi chỉ định', maxScore: 5, note: 'Quan sát đặc điểm', rounding: 'none', lastImportInfo: '' }
             ]
         },
         picker: { 
@@ -66,10 +67,7 @@ document.addEventListener('alpine:init', () => {
         newStudent: { mssv: '', hoLot: '', ten: '', className: '' },
         logs: [],
 
-        // Kiểm tra và yêu cầu mở trong trình duyệt:
-        isZaloBrowser: false,
         initApp() {
-            // Phát hiện trình duyệt nhúng của Zalo (Zalo / ZaloTheme)
             const ua = navigator.userAgent || '';
             if (/Zalo/i.test(ua)) {
                 this.isZaloBrowser = true;
@@ -81,14 +79,11 @@ document.addEventListener('alpine:init', () => {
             if (!this.timer.timeLeft || this.timer.timeLeft <= 0) {
                 this.timer.timeLeft = (this.config.durationMinutes || 45) * 60;
             }
-            
-            // Chỉ tự động kết nối P2P nếu không bị kẹt trong Zalo WebView
             if (!this.isZaloBrowser) {
                 this.initSyncModule();
             }
         },
 
-        // 3. Thêm hàm sao chép URL hiện tại (giữ nguyên cả tham số ?room=THI-XXXX nếu quét từ QR):
         copyCurrentUrl() {
             navigator.clipboard.writeText(window.location.href);
             this.triggerToast('Đã sao chép đường dẫn! Hãy dán vào Chrome hoặc Safari.', 'success');
@@ -141,11 +136,9 @@ document.addEventListener('alpine:init', () => {
                 onToast: (msg, type) => this.triggerToast(msg, type)
             });
 
-            // Tự động kết nối nếu mở từ đường dẫn quét QR (?room=THI-XXXX) hoặc khôi phục phiên
             this._syncManager.checkAutoJoinFromUrl();
         },
 
-        // Gắn dấu thời gian cập nhật (updatedAt) cho từng sinh viên khi điểm danh, bốc đề hoặc chấm điểm
         stampStudentUpdates(prevStudents, nextStudents) {
             const now = Date.now();
             const prevMap = new Map((prevStudents || []).map(s => [s.id || s.mssv, s]));
@@ -169,14 +162,10 @@ document.addEventListener('alpine:init', () => {
             });
         },
 
-        // Bộ hợp nhất dữ liệu thông minh (Smart Merge) giữa các thiết bị khi tái kết nối
         mergeRemoteState(remote, meta = {}) {
             const isHost = this.syncState.role === 'host';
             const isInitial = !!meta.isInitialSync;
 
-            // 1. Cấu hình, Danh sách đề & Đồng hồ:
-            // Khi tái kết nối (isInitialSync), Host giữ quyền chuẩn về đồng hồ & cấu hình;
-            // Khi đang kết nối trực tiếp bình thường, nhận cập nhật từ máy vừa thao tác.
             if (remote.config && (!isInitial || !isHost)) {
                 Object.assign(this.config, remote.config);
             }
@@ -194,7 +183,6 @@ document.addEventListener('alpine:init', () => {
                 }
             }
 
-            // 2. Hợp nhất danh sách Sinh viên (giữ bản ghi có updatedAt mới nhất cho từng SV)
             if (Array.isArray(remote.students)) {
                 const mergedMap = new Map();
 
@@ -216,7 +204,6 @@ document.addEventListener('alpine:init', () => {
                 this.students = Array.from(mergedMap.values());
             }
 
-            // 3. Hợp nhất Nhật ký phòng thi (gộp đủ cả 2 máy, loại bỏ dòng trùng)
             if (Array.isArray(remote.logs)) {
                 const seen = new Set();
                 const combined = [...this.logs, ...remote.logs].filter(item => {
@@ -230,15 +217,9 @@ document.addEventListener('alpine:init', () => {
         },
 
         // Các hàm điều khiển nút bấm trong Modal Đồng bộ
-        startLiveSyncHost() {
-            this._syncManager?.startHost();
-        },
-        joinLiveSyncRoom() {
-            this._syncManager?.joinRoom(this.syncState.inputCode);
-        },
-        disconnectLiveSync() {
-            this._syncManager?.disconnect(true);
-        },
+        startLiveSyncHost() { this._syncManager?.startHost(); },
+        joinLiveSyncRoom() { this._syncManager?.joinRoom(this.syncState.inputCode); },
+        disconnectLiveSync() { this._syncManager?.disconnect(true); },
         copySyncCode() {
             if (!this.syncState.roomCode) return;
             navigator.clipboard.writeText(this.syncState.roomCode);
@@ -253,7 +234,7 @@ document.addEventListener('alpine:init', () => {
         triggerToast(message, type = 'info') {
             const id = Date.now();
             this.toasts.push({ id, message, type, visible: true });
-            setTimeout(() => { this.toasts = this.toasts.filter(t => t.id !== id); }, 3500);
+            setTimeout(() => { this.toasts = this.toasts.filter(t => t.id !== id); }, 4000);
         },
         removeToast(id) { this.toasts = this.toasts.filter(t => t.id !== id); },
         executeConfirmAction() {
@@ -265,36 +246,15 @@ document.addEventListener('alpine:init', () => {
             else if (document.exitFullscreen) document.exitFullscreen();
         },
 
-        // Timer actions (kèm phát tán trạng thái đồng bộ khi thao tác trực tiếp)
-        toggleTimer() {
-            timerModule.toggleTimer(this);
-            this.broadcastSyncState();
-        },
-        resetTimer() {
-            timerModule.resetTimer(this);
-            this.broadcastSyncState();
-        },
-        adjustHours(amount) {
-            timerModule.adjustHours(this, amount);
-            this.broadcastSyncState();
-        },
-        adjustMinutes(amount) {
-            timerModule.adjustMinutes(this, amount);
-            this.broadcastSyncState();
-        },
-        addExtraMinutes(mins) {
-            timerModule.addExtraMinutes(this, mins);
-            this.broadcastSyncState();
-        },
-        setQuickDuration(mins) {
-            timerModule.setQuickDuration(this, mins);
-            this.broadcastSyncState();
-        },
+        // Timer actions
+        toggleTimer() { timerModule.toggleTimer(this); this.broadcastSyncState(); },
+        resetTimer() { timerModule.resetTimer(this); this.broadcastSyncState(); },
+        adjustHours(amount) { timerModule.adjustHours(this, amount); this.broadcastSyncState(); },
+        adjustMinutes(amount) { timerModule.adjustMinutes(this, amount); this.broadcastSyncState(); },
+        addExtraMinutes(mins) { timerModule.addExtraMinutes(this, mins); this.broadcastSyncState(); },
+        setQuickDuration(mins) { timerModule.setQuickDuration(this, mins); this.broadcastSyncState(); },
         formatTime(s) { return timerModule.formatTime(s); },
-        addLog() {
-            timerModule.addLog(this);
-            this.broadcastSyncState();
-        },
+        addLog() { timerModule.addLog(this); this.broadcastSyncState(); },
 
         // Picker actions
         getExamListArray() { return pickerModule.getExamListArray(this); },
@@ -316,6 +276,136 @@ document.addEventListener('alpine:init', () => {
         toggleAttendance(st) { studentModule.toggleAttendance(this, st); },
         saveManualStudent() { studentModule.saveManualStudent(this); },
         confirmDeleteStudent(st) { studentModule.confirmDeleteStudent(this, st); },
+
+        // Nạp & Quy đổi điểm từ file Excel (Cột C: Mã Sinh Viên, Cột I: Điểm số thang 10) cho từng Phần thi
+        handleSectionExcelScoreUpload(event, sectionIdx) {
+            const file = event.target.files?.[0];
+            if (!file) return;
+
+            const section = this.config.sections[sectionIdx];
+            if (!section) {
+                event.target.value = '';
+                return;
+            }
+
+            if (!this.students || this.students.length === 0) {
+                this.triggerToast('Danh sách thí sinh đang trống! Vui lòng tải danh sách thí sinh trước.', 'warning');
+                event.target.value = '';
+                return;
+            }
+
+            if (!window.XLSX) {
+                this.triggerToast('Không tìm thấy thư viện đọc Excel (SheetJS).', 'error');
+                event.target.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = window.XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    // Đọc dữ liệu theo mảng 2 chiều để trích xuất chính xác Cột C (index 2) và Cột I (index 8)
+                    const rows = window.XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+
+                    if (rows.length <= 1) {
+                        this.triggerToast('File Excel không có dữ liệu thí sinh!', 'warning');
+                        return;
+                    }
+
+                    // Map lưu MSSV chuẩn hóa -> Điểm gốc thang 10 (tự động lấy lượt nộp sau cùng nếu trùng MSSV)
+                    const scoreMap = new Map();
+                    for (let i = 1; i < rows.length; i++) {
+                        const row = rows[i];
+                        if (!row || row.length < 9) continue;
+
+                        const mssv = String(row[2] ?? '').trim().toUpperCase();
+                        if (!mssv || mssv === 'MÃ SINH VIÊN' || mssv === 'MSSV') continue;
+
+                        const rawScoreStr = String(row[8] ?? '').trim().replace(',', '.');
+                        const rawScore = parseFloat(rawScoreStr);
+                        if (!isNaN(rawScore)) {
+                            scoreMap.set(mssv, rawScore);
+                        }
+                    }
+
+                    if (scoreMap.size === 0) {
+                        this.triggerToast('Không đọc được dữ liệu hợp lệ ở Cột C (Mã SV) và Cột I (Điểm số)!', 'error');
+                        return;
+                    }
+
+                    const maxSecScore = Number(section.maxScore) || 0;
+                    const roundingMode = section.rounding || 'none';
+                    let matchedCount = 0;
+                    let absentWithScoreCount = 0;
+
+                    this.students.forEach((st) => {
+                        if (!Array.isArray(st.scores)) {
+                            st.scores = new Array(this.config.sections.length).fill(0);
+                        }
+                        while (st.scores.length < this.config.sections.length) {
+                            st.scores.push(0);
+                        }
+
+                        const stMssv = String(st.mssv ?? '').trim().toUpperCase();
+                        if (scoreMap.has(stMssv)) {
+                            const baseScore10 = scoreMap.get(stMssv);
+                            let converted = (baseScore10 / 10) * maxSecScore;
+
+                            if (roundingMode === '0.25') {
+                                converted = Math.round(converted * 4) / 4;
+                            } else if (roundingMode === '0.5') {
+                                converted = Math.round(converted * 2) / 2;
+                            } else {
+                                converted = Math.round(converted * 100) / 100;
+                            }
+
+                            converted = Math.max(0, Math.min(maxSecScore, converted));
+                            st.scores[sectionIdx] = converted;
+
+                            // Tính lại tổng điểm bài thi cho thí sinh
+                            const sum = this.config.sections.reduce((acc, _, idx) => acc + (Number(st.scores[idx]) || 0), 0);
+                            st.totalScore = Math.round(sum * 100) / 100;
+                            st.updatedAt = Date.now();
+
+                            matchedCount++;
+                            if (!st.isPresent) absentWithScoreCount++;
+                        }
+                    });
+
+                    section.lastImportInfo = `Đã nạp ${matchedCount}/${this.students.length} SV (${file.name})`;
+
+                    this.logs.unshift({
+                        time: new Date().toLocaleTimeString('vi-VN'),
+                        text: `Nạp điểm Excel [${section.title || 'Phần ' + (sectionIdx + 1)}]: khớp ${matchedCount}/${this.students.length} SV (thang ${maxSecScore}đ).`
+                    });
+
+                    this.saveToLocalStorage();
+
+                    if (matchedCount === 0) {
+                        this.triggerToast('Không có Mã Sinh Viên nào trong file Excel khớp với danh sách phòng thi!', 'warning');
+                    } else if (absentWithScoreCount > 0) {
+                        this.triggerToast(
+                            `Đã cập nhật điểm cho ${matchedCount}/${this.students.length} SV (Lưu ý: có ${absentWithScoreCount} SV đang đánh dấu VẮNG nhưng có điểm!).`,
+                            'warning'
+                        );
+                    } else {
+                        this.triggerToast(
+                            `Đã cập nhật điểm "${section.title || 'Phần ' + (sectionIdx + 1)}" cho ${matchedCount}/${this.students.length} thí sinh!`,
+                            'success'
+                        );
+                    }
+                } catch (err) {
+                    console.error('Lỗi đọc file Excel điểm:', err);
+                    this.triggerToast('Lỗi khi xử lý file Excel bảng điểm!', 'error');
+                } finally {
+                    event.target.value = '';
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        },
 
         // Validation & Lưu Chấm điểm
         hasGradingError() {
@@ -383,7 +473,6 @@ document.addEventListener('alpine:init', () => {
             this._lastSavedStudents = JSON.parse(JSON.stringify(this.students));
 
             storageModule.saveToLocalStorage(this);
-            // Tự động phát tán dữ liệu sang các máy khác mỗi khi bất kỳ module nào gọi saveToLocalStorage()
             this.broadcastSyncState();
         },
         loadFromLocalStorage() { storageModule.loadFromLocalStorage(this); },
