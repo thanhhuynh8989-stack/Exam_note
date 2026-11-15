@@ -277,7 +277,20 @@ document.addEventListener('alpine:init', () => {
         saveManualStudent() { studentModule.saveManualStudent(this); },
         confirmDeleteStudent(st) { studentModule.confirmDeleteStudent(this, st); },
 
-        // Nạp & Quy đổi điểm từ file Excel (Cột C: Mã Sinh Viên, Cột I: Điểm số thang 10) cho từng Phần thi
+        // Chuẩn hóa Mã Sinh Viên (xử lý cả kiểu Number, String, dấu nháy đơn ', đuôi .0 và khoảng trắng)
+        normalizeStudentId(val) {
+            if (val === null || val === undefined) return '';
+            let str = String(val).trim();
+            // Bỏ dấu nháy đơn đầu chuỗi do Excel ép kiểu Text (VD: '32213504679)
+            str = str.replace(/^'+/, '');
+            // Bỏ đuôi .0 nếu bị đọc thành số thực (VD: 32213504679.0 -> 32213504679)
+            if (/^\d+\.0+$/.test(str)) {
+                str = str.replace(/\.0+$/, '');
+            }
+            return str.replace(/\s+/g, '').toUpperCase();
+        },
+
+        // Nạp & Quy đổi điểm từ file Excel (.xlsx, .xls) hoặc CSV (.csv) cho từng Phần thi
         handleSectionExcelScoreUpload(event, sectionIdx) {
             const file = event.target.files?.[0];
             if (!file) return;
@@ -295,42 +308,54 @@ document.addEventListener('alpine:init', () => {
             }
 
             if (!window.XLSX) {
-                this.triggerToast('Không tìm thấy thư viện đọc Excel (SheetJS).', 'error');
+                this.triggerToast('Không tìm thấy thư viện đọc bảng tính (SheetJS).', 'error');
                 event.target.value = '';
                 return;
             }
 
+            const isCsv = file.name.toLowerCase().endsWith('.csv');
             const reader = new FileReader();
+
             reader.onload = (e) => {
                 try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = window.XLSX.read(data, { type: 'array' });
+                    // Đọc CSV theo chuỗi UTF-8 để giữ nguyên tiếng Việt và tự nhận diện dấu phẩy / chấm phẩy
+                    const workbook = isCsv
+                        ? window.XLSX.read(e.target.result, { type: 'string' })
+                        : window.XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+
                     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                    // Đọc dữ liệu theo mảng 2 chiều để trích xuất chính xác Cột C (index 2) và Cột I (index 8)
                     const rows = window.XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
 
                     if (rows.length <= 1) {
-                        this.triggerToast('File Excel không có dữ liệu thí sinh!', 'warning');
+                        this.triggerToast('File bảng điểm không có dữ liệu thí sinh!', 'warning');
                         return;
                     }
 
-                    // Map lưu MSSV chuẩn hóa -> Điểm gốc thang 10 (tự động lấy lượt nộp sau cùng nếu trùng MSSV)
-                    const scoreMap = new Map();
+                    // Map 1: Khớp chính xác chuỗi chuẩn hóa (VD: "0322135" hoặc "SV001")
+                    // Map 2: Khớp dự phòng cho mã thuần số bị Excel cắt mất số 0 ở đầu (VD: "0322135" <-> 322135)
+                    const exactScoreMap = new Map();
+                    const numericFallbackMap = new Map();
+
                     for (let i = 1; i < rows.length; i++) {
                         const row = rows[i];
                         if (!row || row.length < 9) continue;
 
-                        const mssv = String(row[2] ?? '').trim().toUpperCase();
-                        if (!mssv || mssv === 'MÃ SINH VIÊN' || mssv === 'MSSV') continue;
+                        const normMssv = this.normalizeStudentId(row[2]); // Cột C: Mã Sinh Viên
+                        if (!normMssv || normMssv === 'MÃSINHVIÊN' || normMssv === 'MSSV') continue;
 
-                        const rawScoreStr = String(row[8] ?? '').trim().replace(',', '.');
+                        const rawScoreStr = String(row[8] ?? '').trim().replace(',', '.'); // Cột I: Điểm số
                         const rawScore = parseFloat(rawScoreStr);
+
                         if (!isNaN(rawScore)) {
-                            scoreMap.set(mssv, rawScore);
+                            exactScoreMap.set(normMssv, rawScore);
+                            if (/^\d+$/.test(normMssv)) {
+                                const strippedZeros = normMssv.replace(/^0+/, '') || '0';
+                                numericFallbackMap.set(strippedZeros, rawScore);
+                            }
                         }
                     }
 
-                    if (scoreMap.size === 0) {
+                    if (exactScoreMap.size === 0) {
                         this.triggerToast('Không đọc được dữ liệu hợp lệ ở Cột C (Mã SV) và Cột I (Điểm số)!', 'error');
                         return;
                     }
@@ -348,9 +373,19 @@ document.addEventListener('alpine:init', () => {
                             st.scores.push(0);
                         }
 
-                        const stMssv = String(st.mssv ?? '').trim().toUpperCase();
-                        if (scoreMap.has(stMssv)) {
-                            const baseScore10 = scoreMap.get(stMssv);
+                        const normStMssv = this.normalizeStudentId(st.mssv);
+                        let baseScore10 = null;
+
+                        if (exactScoreMap.has(normStMssv)) {
+                            baseScore10 = exactScoreMap.get(normStMssv);
+                        } else if (/^\d+$/.test(normStMssv)) {
+                            const strippedStZeros = normStMssv.replace(/^0+/, '') || '0';
+                            if (numericFallbackMap.has(strippedStZeros)) {
+                                baseScore10 = numericFallbackMap.get(strippedStZeros);
+                            }
+                        }
+
+                        if (baseScore10 !== null) {
                             let converted = (baseScore10 / 10) * maxSecScore;
 
                             if (roundingMode === '0.25') {
@@ -364,7 +399,6 @@ document.addEventListener('alpine:init', () => {
                             converted = Math.max(0, Math.min(maxSecScore, converted));
                             st.scores[sectionIdx] = converted;
 
-                            // Tính lại tổng điểm bài thi cho thí sinh
                             const sum = this.config.sections.reduce((acc, _, idx) => acc + (Number(st.scores[idx]) || 0), 0);
                             st.totalScore = Math.round(sum * 100) / 100;
                             st.updatedAt = Date.now();
@@ -378,13 +412,13 @@ document.addEventListener('alpine:init', () => {
 
                     this.logs.unshift({
                         time: new Date().toLocaleTimeString('vi-VN'),
-                        text: `Nạp điểm Excel [${section.title || 'Phần ' + (sectionIdx + 1)}]: khớp ${matchedCount}/${this.students.length} SV (thang ${maxSecScore}đ).`
+                        text: `Nạp điểm [${section.title || 'Phần ' + (sectionIdx + 1)}]: khớp ${matchedCount}/${this.students.length} SV (thang ${maxSecScore}đ).`
                     });
 
                     this.saveToLocalStorage();
 
                     if (matchedCount === 0) {
-                        this.triggerToast('Không có Mã Sinh Viên nào trong file Excel khớp với danh sách phòng thi!', 'warning');
+                        this.triggerToast('Không có Mã Sinh Viên nào khớp với danh sách phòng thi!', 'warning');
                     } else if (absentWithScoreCount > 0) {
                         this.triggerToast(
                             `Đã cập nhật điểm cho ${matchedCount}/${this.students.length} SV (Lưu ý: có ${absentWithScoreCount} SV đang đánh dấu VẮNG nhưng có điểm!).`,
@@ -397,14 +431,18 @@ document.addEventListener('alpine:init', () => {
                         );
                     }
                 } catch (err) {
-                    console.error('Lỗi đọc file Excel điểm:', err);
-                    this.triggerToast('Lỗi khi xử lý file Excel bảng điểm!', 'error');
+                    console.error('Lỗi đọc file bảng điểm:', err);
+                    this.triggerToast('Lỗi khi xử lý file bảng điểm Excel/CSV!', 'error');
                 } finally {
                     event.target.value = '';
                 }
             };
 
-            reader.readAsArrayBuffer(file);
+            if (isCsv) {
+                reader.readAsText(file, 'UTF-8');
+            } else {
+                reader.readAsArrayBuffer(file);
+            }
         },
 
         // Validation & Lưu Chấm điểm
