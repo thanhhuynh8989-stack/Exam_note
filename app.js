@@ -388,7 +388,9 @@ document.addEventListener('alpine:init', () => {
                         if (baseScore10 !== null) {
                             let converted = (baseScore10 / 10) * maxSecScore;
 
-                            if (roundingMode === '0.25') {
+                            if (roundingMode === '0.1') {
+                                converted = Math.round(converted * 10) / 10;
+                            } else if (roundingMode === '0.25') {
                                 converted = Math.round(converted * 4) / 4;
                             } else if (roundingMode === '0.5') {
                                 converted = Math.round(converted * 2) / 2;
