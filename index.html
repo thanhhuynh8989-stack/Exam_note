@@ -221,6 +221,163 @@
         </div>
     </div>
 
+    <!-- MODAL: QUẢN LÝ LƯU TRỮ SUẤT THI (TRÌNH DUYỆT & FILE .JSON) -->
+    <div x-show="sessionState.showModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 space-y-5 max-h-[90vh] flex flex-col" @click.away="sessionState.showModal = false">
+            
+            <!-- Header Modal -->
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3 shrink-0">
+                <div class="flex items-center space-x-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-base">
+                        <i class="fa-solid fa-folder-tree"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900">Quản Lý & Lưu Trữ Suất Thi</h3>
+                        <p class="text-[11px] text-slate-500">Lưu trên trình duyệt có khóa mật khẩu hoặc xuất file .JSON vào thư mục exam</p>
+                    </div>
+                </div>
+                <button @click="sessionState.showModal = false" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- KHỐI 1: LƯU SUẤT THI HIỆN TẠI -->
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 shrink-0">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="text-xs font-bold text-slate-800">
+                        <i class="fa-solid fa-floppy-disk text-blue-600 mr-1.5"></i>
+                        Suất hiện tại: <span class="text-blue-700" x-text="`${config.subjectCode || ''} ${config.subClass || ''}`.trim() || 'Chưa đặt lớp'"></span>
+                        <span class="text-slate-500 font-normal" x-text="`(${config.examTime || 'Chưa đặt giờ'} • ${students.length} SV)`"></span>
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <div class="relative flex-grow">
+                        <i class="fa-solid fa-key absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input type="password" 
+                               x-model="sessionState.newPassword" 
+                               placeholder="Đặt mật khẩu bảo vệ (để trống nếu không khóa)..." 
+                               class="w-full pl-8 pr-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+                    <div class="flex flex-wrap gap-2 shrink-0">
+                        <button @click="saveCurrentSession(false)" 
+                                class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center space-x-1.5">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>Lưu Suất Mới</span>
+                        </button>
+
+                        <button x-show="sessionState.currentSessionId" 
+                                @click="saveCurrentSession(true)" 
+                                class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center space-x-1.5">
+                            <i class="fa-solid fa-arrows-rotate"></i>
+                            <span>Cập Nhật</span>
+                        </button>
+
+                        <button @click="exportCurrentSessionJson()" 
+                                title="Tải file .json về thư mục exam trên máy tính"
+                                class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center space-x-1.5">
+                            <i class="fa-solid fa-file-export"></i>
+                            <span>Xuất .JSON</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HỘP XÁC THỰC MẬT KHẨU (HIỆN KHI MỞ / XÓA / NHẬP SUẤT THI CÓ KHÓA) -->
+            <template x-if="sessionState.authPrompt.show">
+                <div class="p-4 bg-amber-50 border-2 border-amber-300 rounded-xl space-y-2.5 shrink-0">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-amber-900">
+                            <i class="fa-solid fa-lock text-amber-600 mr-1.5"></i>
+                            <span x-text="sessionState.authPrompt.action === 'delete' ? 'Nhập mật khẩu để XÓA suất thi:' : 'Nhập mật khẩu để MỞ suất thi:'"></span>
+                            <span class="underline" x-text="sessionState.authPrompt.session?.className"></span>
+                        </span>
+                        <button @click="sessionState.authPrompt.show = false" class="text-xs text-slate-500 hover:text-slate-800 font-semibold">Hủy</button>
+                    </div>
+
+                    <div class="flex space-x-2">
+                        <input type="password" 
+                               x-model="sessionState.authPrompt.inputPassword" 
+                               @keydown.enter="verifySessionPassword()"
+                               placeholder="Nhập mật khẩu truy cập..." 
+                               class="flex-grow text-xs p-2.5 bg-white border border-amber-300 rounded-xl focus:ring-2 focus:ring-amber-500">
+                        <button @click="verifySessionPassword()" 
+                                class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all">
+                            Xác Nhận
+                        </button>
+                    </div>
+                    <p x-show="sessionState.authPrompt.errorMsg" class="text-[11px] font-bold text-rose-600" x-text="sessionState.authPrompt.errorMsg"></p>
+                </div>
+            </template>
+
+            <!-- KHỐI 2: DANH SÁCH CÁC SUẤT THI ĐÃ LƯU -->
+            <div class="flex-grow overflow-hidden flex flex-col space-y-2">
+                <div class="flex items-center justify-between">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-600">
+                        Danh Sách Suất Thi Đã Lưu (<span x-text="sessionState.savedSessions.length">0</span>)
+                    </h4>
+
+                    <!-- Nút mở file .JSON từ thư mục exam trên máy tính -->
+                    <label class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] rounded-lg border border-slate-200 transition-all flex items-center space-x-1.5 cursor-pointer">
+                        <i class="fa-solid fa-file-import text-blue-600"></i>
+                        <span>Mở File .JSON Từ Máy</span>
+                        <input type="file" accept=".json" class="hidden" @change="importSessionJson($event)">
+                    </label>
+                </div>
+
+                <div class="flex-grow overflow-y-auto space-y-2 pr-1">
+                    <template x-if="sessionState.savedSessions.length === 0">
+                        <div class="py-10 text-center border-2 border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
+                            Chưa có suất thi nào được lưu trên trình duyệt này.
+                        </div>
+                    </template>
+
+                    <template x-for="ses in sessionState.savedSessions" :key="ses.id">
+                        <div class="p-3.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                             :class="sessionState.currentSessionId === ses.id ? 'bg-blue-50/60 border-blue-300' : 'bg-white border-slate-200 hover:border-slate-300'">
+                            
+                            <div class="space-y-1">
+                                <div class="flex items-center space-x-2">
+                                    <span class="px-2 py-0.5 rounded text-[11px] font-black font-mono bg-slate-900 text-white" x-text="ses.className"></span>
+                                    <span class="text-xs font-bold text-slate-800" x-text="ses.subjectName"></span>
+                                    <span x-show="ses.hasPassword" title="Được bảo vệ bằng mật khẩu" class="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-bold">
+                                        <i class="fa-solid fa-lock mr-0.5"></i> Khóa
+                                    </span>
+                                    <span x-show="sessionState.currentSessionId === ses.id" class="px-1.5 py-0.5 bg-blue-600 text-white rounded text-[10px] font-bold">
+                                        Đang mở
+                                    </span>
+                                </div>
+                                <div class="text-[11px] text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5">
+                                    <span><i class="fa-regular fa-clock text-amber-600 mr-1"></i><strong class="text-slate-700" x-text="ses.examTime"></strong></span>
+                                    <span><i class="fa-solid fa-users text-slate-400 mr-1"></i><span x-text="ses.studentCount + ' SV'"></span></span>
+                                    <span class="text-slate-400" x-text="'Lưu lúc: ' + ses.savedAt"></span>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center space-x-1.5 shrink-0">
+                                <button @click="triggerSessionAction(ses, 'load')" 
+                                        class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition-all">
+                                    <i class="fa-solid fa-folder-open mr-1"></i> Mở
+                                </button>
+                                <button @click="exportSpecificSessionJson(ses)" 
+                                        title="Tải file .json về máy"
+                                        class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg border border-slate-200 transition-all">
+                                    <i class="fa-solid fa-download"></i>
+                                </button>
+                                <button @click="triggerSessionAction(ses, 'delete')" 
+                                        title="Xóa suất thi"
+                                        class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold text-xs rounded-lg border border-rose-200 transition-all">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL: GRADING DETAIL FOR A STUDENT (Có kiểm tra điểm tối đa & cảnh báo) -->
     <div x-show="showGradingModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
         <template x-if="showGradingModal && activeStudent">
@@ -311,7 +468,18 @@
                     </div>
                 </div>
 
-                <div class="flex items-center space-x-2 sm:space-x-4">
+                <div class="flex items-center space-x-2 sm:space-x-3">
+    
+                    <!-- DÁN NÚT SUẤT THI VÀO ĐÂY -->
+                    <button @click="openSessionModal()" 
+                            class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold transition-all">
+                        <i class="fa-solid fa-folder-open text-amber-400"></i>
+                        <span>Suất Thi</span>
+                        <span x-show="sessionState.savedSessions.length > 0" 
+                              class="px-1.5 py-0.2 bg-amber-500 text-slate-900 rounded-full text-[10px] font-black"
+                              x-text="sessionState.savedSessions.length"></span>
+                    </button>
+                    
                     <!-- NÚT MỞ CỔNG ĐỒNG BỘ TRỰC TIẾP P2P -->
                     <button @click="syncState.showModal = true" 
                             class="flex items-center space-x-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all"
