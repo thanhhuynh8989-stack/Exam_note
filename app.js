@@ -5,6 +5,7 @@ import { configModule } from './js/config.module.js';
 import { storageModule } from './js/storage.module.js';
 import { printModule } from './js/print.module.js';
 import { P2PSyncManager } from './p2p-sync.js';
+import { sessionModule } from './js/session.module.js';
 
 // Lắng nghe sự kiện Alpine khởi tạo
 document.addEventListener('alpine:init', () => {
@@ -34,6 +35,21 @@ document.addEventListener('alpine:init', () => {
         _syncManager: null,
         _isApplyingRemote: false,
         _lastSavedStudents: [],
+
+        // Trạng thái Quản lý & Lưu trữ nhiều suất thi
+        sessionState: {
+            showModal: false,
+            currentSessionId: null,
+            newPassword: '',
+            savedSessions: [],
+            authPrompt: {
+                show: false,
+                action: '',
+                session: null,
+                inputPassword: '',
+                errorMsg: ''
+            }
+        },
         
         timer: { timeLeft: 60 * 60, isRunning: false, intervalId: null },
         config: {
@@ -76,6 +92,8 @@ document.addEventListener('alpine:init', () => {
             setInterval(() => { this.currentSystemTime = new Date().toLocaleTimeString('vi-VN'); }, 1000);
             this.loadFromLocalStorage();
             this._lastSavedStudents = JSON.parse(JSON.stringify(this.students || []));
+            this.sessionState.savedSessions = sessionModule.loadAllSessions();
+
             if (!this.timer.timeLeft || this.timer.timeLeft <= 0) {
                 this.timer.timeLeft = (this.config.durationMinutes || 45) * 60;
             }
@@ -229,6 +247,31 @@ document.addEventListener('alpine:init', () => {
             if (!this._isApplyingRemote && this._syncManager) {
                 this._syncManager.broadcast(this._syncManager.getAppState());
             }
+        },
+
+        // Các hàm điều khiển Quản lý & Lưu trữ Suất thi
+        openSessionModal() {
+            this.sessionState.savedSessions = sessionModule.loadAllSessions();
+            this.sessionState.authPrompt = { show: false, action: '', session: null, inputPassword: '', errorMsg: '' };
+            this.sessionState.showModal = true;
+        },
+        saveCurrentSession(isUpdate = false) {
+            sessionModule.saveSession(this, isUpdate);
+        },
+        triggerSessionAction(sessionItem, actionType) {
+            sessionModule.requestSessionAction(this, sessionItem, actionType);
+        },
+        verifySessionPassword() {
+            sessionModule.verifyAndExecuteAuth(this);
+        },
+        exportCurrentSessionJson() {
+            sessionModule.exportSessionToJson(this, null);
+        },
+        exportSpecificSessionJson(sessionItem) {
+            sessionModule.exportSessionToJson(this, sessionItem);
+        },
+        importSessionJson(event) {
+            sessionModule.importSessionFromJson(this, event);
         },
 
         triggerToast(message, type = 'info') {
@@ -501,6 +544,7 @@ document.addEventListener('alpine:init', () => {
                     this.students = [];
                     this.logs = [];
                     this._lastSavedStudents = [];
+                    this.sessionState.currentSessionId = null;
                     this.broadcastSyncState();
                     this.triggerToast("Đã xóa bản nháp thành công!", "info");
                 }
