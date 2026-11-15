@@ -802,8 +802,8 @@
                                 <div class="pt-1.5 border-t border-slate-200/80 space-y-1">
                                     <label class="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-[11px] rounded-lg transition-all flex items-center justify-center space-x-1.5 cursor-pointer">
                                         <i class="fa-solid fa-file-excel text-emerald-600"></i>
-                                        <span>Nạp Điểm Excel (Cột C &amp; I)</span>
-                                        <input type="file" accept=".xlsx, .xls" class="hidden" @change="handleSectionExcelScoreUpload($event, idx)">
+                                        <span>Nạp Điểm</span>
+                                        <input type="file" accept=".xlsx, .xls, .csv" class="hidden" @change="handleSectionExcelScoreUpload($event, idx)">
                                     </label>
                                     <p x-show="sec.lastImportInfo" class="text-[10px] text-emerald-700 font-medium truncate" x-text="sec.lastImportInfo"></p>
                                 </div>
