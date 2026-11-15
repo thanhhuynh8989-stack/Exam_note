@@ -791,7 +791,8 @@
                                         
                                         <!-- Tùy chọn làm tròn điểm quy đổi -->
                                         <select x-model="sec.rounding" @change="saveToLocalStorage()" title="Quy tắc làm tròn khi nạp từ Excel" class="w-full text-[11px] p-2 border border-slate-300 rounded-lg bg-white text-slate-700 font-medium">
-                                            <option value="none">Giữ lẻ (2 số)</option>
+                                            <option value="none">Làm tròn 2 số thập phân</option>
+                                            <option value="0.1">Làm tròn 1 số thập phân</option>
                                             <option value="0.25">Làm tròn 0.25</option>
                                             <option value="0.5">Làm tròn 0.5</option>
                                         </select>
