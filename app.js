@@ -101,17 +101,17 @@ function createExamAppState() {
                 this.isZaloBrowser = true;
             }
 
+            this.currentSystemTime = new Date().toLocaleTimeString('vi-VN');
             setInterval(() => { this.currentSystemTime = new Date().toLocaleTimeString('vi-VN'); }, 1000);
+
             this.loadFromLocalStorage();
-            this._lastSavedStudents = JSON.parse(JSON.stringify(this.students || []));
-            this._lastSavedConfigStr = JSON.stringify(this.config || {});
-            this.sessionState.savedSessions = sessionModule.loadAllSessions();
+
+            // Đặt lại cờ chạy đồng hồ sau khi tải lại trang (tránh kẹt UI khi intervalId không còn)
+            this.timer.isRunning = false;
+            this.timer.intervalId = null;
 
             if (!this.timer.timeLeft || this.timer.timeLeft <= 0) {
                 this.timer.timeLeft = (this.config.durationMinutes || 45) * 60;
-            }
-            if (!this.isZaloBrowser) {
-                syncBridgeModule.init(this);
             }
 
             if (!this.config.examDateTimeISO && this.config.time) {
@@ -119,6 +119,14 @@ function createExamAppState() {
             }
             if (this.config.examDateTimeISO) {
                 this.config.time = this.formatVietnameseExamTime(this.config.examDateTimeISO);
+            }
+
+            this._lastSavedStudents = JSON.parse(JSON.stringify(this.students || []));
+            this._lastSavedConfigStr = JSON.stringify(this.config || {});
+            this.sessionState.savedSessions = sessionModule.loadAllSessions();
+
+            if (!this.isZaloBrowser) {
+                syncBridgeModule.init(this);
             }
         },
 
@@ -158,11 +166,12 @@ function createExamAppState() {
         },
 
         detectAndLogLocalDiffs(prevStudents, nextStudents) {
-            const prevMap = new Map((prevStudents || []).map(s => [s.id || s.mssv, s]));
-            const nextMap = new Map((nextStudents || []).map(s => [s.id || s.mssv, s]));
+            const getKey = (s) => (s?.mssv ? String(s.mssv).trim().toUpperCase() : (s?.id || ''));
+            const prevMap = new Map((prevStudents || []).map(s => [getKey(s), s]));
+            const nextMap = new Map((nextStudents || []).map(s => [getKey(s), s]));
 
             // Phát hiện nhập hàng loạt hoặc thêm mới
-            const added = (nextStudents || []).filter(s => !prevMap.has(s.id || s.mssv));
+            const added = (nextStudents || []).filter(s => !prevMap.has(getKey(s)));
             if (added.length > 1) {
                 this.recordAuditLog(`Nhập danh sách thí sinh (+${added.length} SV, tổng ${nextStudents.length} SV)`);
                 return;
@@ -173,7 +182,7 @@ function createExamAppState() {
             }
 
             // Phát hiện xóa
-            const removed = (prevStudents || []).filter(s => !nextMap.has(s.id || s.mssv));
+            const removed = (prevStudents || []).filter(s => !nextMap.has(getKey(s)));
             if (removed.length > 0) {
                 removed.forEach(st => {
                     const k = st.id || st.mssv;
@@ -187,17 +196,25 @@ function createExamAppState() {
                 return;
             }
 
-            // Phát hiện thay đổi trạng thái từng thí sinh
+            // Phát hiện thay đổi trạng thái / điểm số
+            const scoreChangedList = [];
             for (const st of (nextStudents || [])) {
-                const old = prevMap.get(st.id || st.mssv);
+                const old = prevMap.get(getKey(st));
                 if (!old) continue;
                 if (old.isPresent !== st.isPresent) {
                     this.recordAuditLog(`Điểm danh ${st.hoLot} ${st.ten} (${st.mssv}): ${st.isPresent ? 'Có mặt' : 'Vắng thi'}`);
                 } else if (old.assignedExam !== st.assignedExam) {
                     this.recordAuditLog(`Cập nhật mã đề ${st.hoLot} ${st.ten} (${st.mssv}): ${st.assignedExam || 'Trống'}`);
                 } else if (old.totalScore !== st.totalScore || JSON.stringify(old.scores || []) !== JSON.stringify(st.scores || [])) {
-                    this.recordAuditLog(`Cập nhật điểm ${st.hoLot} ${st.ten} (${st.mssv}): ${st.totalScore ?? 0}đ`);
+                    scoreChangedList.push(st);
                 }
+            }
+
+            if (scoreChangedList.length > 1) {
+                this.recordAuditLog(`Cập nhật điểm hàng loạt cho ${scoreChangedList.length} thí sinh`);
+            } else if (scoreChangedList.length === 1) {
+                const st = scoreChangedList[0];
+                this.recordAuditLog(`Cập nhật điểm ${st.hoLot} ${st.ten} (${st.mssv}): ${st.totalScore ?? 0}đ`);
             }
         },
 
@@ -306,7 +323,7 @@ function createExamAppState() {
             else if (document.exitFullscreen) document.exitFullscreen();
         },
 
-        // --- Fullscreen of Score-List ---
+        // --- Chế độ Toàn màn hình Danh sách điểm ---
         openScoreFullscreen() {
             this.isScoreFullscreen = true;
             if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
@@ -361,15 +378,21 @@ function createExamAppState() {
             if (!this.activeStudent || !Array.isArray(this.activeStudent.scores)) return false;
             const sec = this.config.sections[idx];
             if (!sec) return false;
-            const val = Number(this.activeStudent.scores[idx]);
+            const raw = this.activeStudent.scores[idx];
+            if (raw === '' || raw === null || raw === undefined) return true;
+            const val = Number(raw);
             return Number.isNaN(val) || val < 0 || val > Number(sec.maxScore);
         },
-        
         calculateTotalScore(st) { studentModule.calculateTotalScore(this, st); },
 
         toggleAttendance(st) {
             const prevPresent = st.isPresent;
-            studentModule.toggleAttendance(this, st);
+            this._skipAutoDiffLog = true;
+            try {
+                studentModule.toggleAttendance(this, st);
+            } finally {
+                this._skipAutoDiffLog = false;
+            }
             if (st.isPresent !== prevPresent) {
                 this.recordAuditLog(`Điểm danh ${st.hoLot} ${st.ten} (${st.mssv}): ${st.isPresent ? 'Có mặt' : 'Vắng thi'}`);
             }
@@ -378,7 +401,12 @@ function createExamAppState() {
         saveManualStudent() {
             const prevCount = this.students.length;
             const draft = { ...this.newStudent };
-            studentModule.saveManualStudent(this);
+            this._skipAutoDiffLog = true;
+            try {
+                studentModule.saveManualStudent(this);
+            } finally {
+                this._skipAutoDiffLog = false;
+            }
             if (this.students.length > prevCount) {
                 this.recordAuditLog(`Thêm thí sinh mới: ${draft.hoLot} ${draft.ten} (${draft.mssv})`);
             }
@@ -391,7 +419,12 @@ function createExamAppState() {
             if (this.confirmModal && typeof this.confirmModal.onConfirm === 'function') {
                 const origConfirm = this.confirmModal.onConfirm;
                 this.confirmModal.onConfirm = () => {
-                    origConfirm();
+                    this._skipAutoDiffLog = true;
+                    try {
+                        origConfirm();
+                    } finally {
+                        this._skipAutoDiffLog = false;
+                    }
                     if (stKey && !this.deletedStudentIds.includes(stKey)) {
                         this.deletedStudentIds.push(stKey);
                     }
@@ -430,15 +463,19 @@ function createExamAppState() {
         },
 
         hasGradingError() {
-            if (!this.activeStudent || !this.activeStudent.scores || !this.config.sections) return false;
-            return this.config.sections.some((sec, idx) => {
-                const score = Number(this.activeStudent.scores[idx]) || 0;
-                return score < 0 || score > Number(sec.maxScore);
-            });
+            if (!this.activeStudent || !Array.isArray(this.activeStudent.scores) || !this.config.sections) return false;
+            return this.config.sections.some((_, idx) => this.isGradingScoreInvalid(idx));
         },
 
         saveGradingModal() {
             if (!this.activeStudent) return;
+            if (this.hasGradingError()) {
+                this.triggerToast("Điểm nhập vào không hợp lệ (trống, nhỏ hơn 0 hoặc vượt quá điểm tối đa)!", "error");
+                return;
+            }
+
+            const normalizedScores = this.activeStudent.scores.map(v => Number(v) || 0);
+            this.activeStudent.scores = normalizedScores;
             this.calculateTotalScore(this.activeStudent);
 
             const targetIdx = this.students.findIndex(s =>
@@ -449,7 +486,7 @@ function createExamAppState() {
             if (targetIdx !== -1) {
                 this.students[targetIdx] = {
                     ...this.students[targetIdx],
-                    scores: [...this.activeStudent.scores],
+                    scores: [...normalizedScores],
                     totalScore: this.activeStudent.totalScore
                 };
             }
@@ -499,7 +536,7 @@ function createExamAppState() {
             };
         },
 
-       saveToLocalStorage() {
+        saveToLocalStorage() {
             const prevStudents = this._lastSavedStudents || [];
             const nextConfigStr = JSON.stringify(this.config || {});
 
@@ -527,7 +564,7 @@ function createExamAppState() {
                 this.broadcastSyncState();
             }
         },
-       
+
         loadFromLocalStorage() { storageModule.loadFromLocalStorage(this); },
 
         // --- Thời gian thi tiếng Việt & Helpers ---
