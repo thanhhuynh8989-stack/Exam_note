@@ -27,13 +27,13 @@ document.addEventListener('alpine:init', () => {
         // Trạng thái cổng Đồng bộ trực tiếp P2P
         syncState: {
             showModal: false,
-            status: 'disconnected', // 'disconnected' | 'connecting' | 'connected' | 'reconnecting'
-            role: null,             // 'host' | 'guest' | null
+            status: 'disconnected',
+            role: null,
             roomCode: '',
-            dynamicPin: '',         // Mã PIN 4 số tự động đổi mỗi 60 giây
-            pinSecondsLeft: 60,     // Số giây còn lại trước khi đổi PIN mới
-            inputCode: '',          // Mã phòng thiết bị phụ nhập
-            inputPin: '',           // Mã PIN 4 số thiết bị phụ nhập
+            dynamicPin: '',
+            pinSecondsLeft: 60,
+            inputCode: '',
+            inputPin: '',
             authError: '',
             isScanningQr: false,
             peerCount: 0
