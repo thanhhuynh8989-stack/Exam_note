@@ -839,45 +839,47 @@
         <!-- TAB 3: STUDENTS & GRADING -->
         <div x-show="activeTab === 'students'" x-cloak>
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm">
-                <div class="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/50 space-y-4">
-                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <!-- Thanh tiêu đề & cụm nút thao tác -->
+                <div class="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/50 space-y-3.5 rounded-t-2xl">
+                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5">
                         <div>
-                            <h2 class="text-base sm:text-lg font-bold text-slate-800">Danh Sách Thí Sinh, Điểm Danh & Chấm Điểm</h2>
-                            <p class="text-xs text-slate-500">Nhấp nút Mẫu Danh Sách Dự Thi để tải về mẫu nhập danh sách thí sinh. Bấm In Danh Sách Dự Thi để tải về Danh sách Thí sinh dự thi. Bấm Tải Điểm để tải Bảng điểm chi tiết.</p>
+                            <h2 class="text-base sm:text-lg font-bold text-slate-800">Danh Sách Thí Sinh, Điểm Danh &amp; Chấm Điểm</h2>
+                            <p class="text-xs text-slate-500 mt-0.5">Tải mẫu Excel để nhập danh sách, điểm danh nhanh, nhập điểm từng phần hoặc xuất bảng điểm.</p>
                         </div>
                         
-                        <!-- DANH SÁCH 5 NÚT THAO TÁC HIỂN THỊ TRỰC TIẾP TRÊN THANH CÔNG CỤ -->
-                        <div class="flex flex-wrap items-center gap-2">
-                            <!-- 2. Tải Mẫu Excel -->
+                        <!-- Cụm 5 nút thao tác: chia lưới 2 cột đều trên điện thoại, xếp ngang trên máy tính -->
+                        <div class="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
+                            <!-- 1. Tải Mẫu Excel -->
                             <button @click="downloadStudentTemplate()" 
-                                    class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl border border-slate-200 transition-all flex items-center space-x-1.5">
+                                    class="px-3 py-2.5 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs rounded-xl border border-slate-200 transition-all flex items-center justify-center space-x-1.5">
                                 <i class="fa-solid fa-download text-slate-500"></i>
-                                <span>Mẫu Danh sách Dự thi</span>
+                                <span>Mẫu DS Dự thi</span>
                             </button>
 
-                            <!-- 3. Upload File Excel -->
-                            <label class="px-3 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl shadow-sm transition-all flex items-center space-x-1.5 cursor-pointer">
+                            <!-- 2. Upload File Excel -->
+                            <label class="px-3 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-1.5 cursor-pointer">
                                 <i class="fa-solid fa-file-excel"></i>
-                                <span>Upload Danh sách</span>
+                                <span>Upload DS</span>
                                 <input type="file" accept=".xlsx, .xls" class="hidden" @change="handleStudentExcelUpload($event)">
                             </label>
 
-                            <!-- 4. Thêm Thí Sinh Thủ Công -->
+                            <!-- 3. Thêm Thí Sinh Thủ Công -->
                             <button @click="showAddStudentModal = true" 
-                                    class="px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow-sm transition-all flex items-center space-x-1.5">
+                                    class="px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-1.5">
                                 <i class="fa-solid fa-user-plus"></i>
-                                <span>Thêm 1 Thí Sinh</span>
+                                <span>Thêm 1 SV</span>
                             </button>
-                            <!-- 1. Xem trước & In Danh Sách Sinh viên dự thi -->
+
+                            <!-- 4. Xem trước & In Danh Sách Sinh viên dự thi -->
                             <button @click="printExamSheet()" 
-                                    class="px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center space-x-2">
+                                    class="px-3 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-1.5">
                                 <i class="fa-solid fa-print"></i>
-                                <span>In Danh Sách Dự Thi</span>
+                                <span>In DS Dự Thi</span>
                             </button>
 
                             <!-- 5. Tải Kết Quả Điểm (.XLSX) -->
                             <button @click="exportToExcelXLSX()" 
-                                    class="px-3 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center space-x-1.5">
+                                    class="col-span-2 sm:col-auto px-3.5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-1.5">
                                 <i class="fa-solid fa-file-arrow-down"></i>
                                 <span>Tải Điểm (.XLSX)</span>
                             </button>
@@ -885,7 +887,68 @@
                     </div>
                 </div>
 
-                <div class="overflow-x-auto rounded-b-2xl">
+                <!-- TRẠNG THÁI TRỐNG KHI CHƯA CÓ SINH VIÊN -->
+                <template x-if="students.length === 0">
+                    <div class="p-8 text-center text-xs text-slate-400">
+                        Chưa có thí sinh nào trong danh sách. Hãy bấm <strong class="text-slate-600">Upload DS</strong> hoặc <strong class="text-slate-600">Thêm 1 SV</strong>.
+                    </div>
+                </template>
+
+                <!-- 1. GIAO DIỆN CARD TRÊN ĐIỆN THOẠI DI ĐỘNG (< 768px) -->
+                <div x-show="students.length > 0" class="md:hidden p-3 space-y-2.5 bg-slate-50/60 rounded-b-2xl">
+                    <template x-for="(st, index) in students" :key="st.id">
+                        <div class="bg-white rounded-xl p-3.5 border shadow-xs transition-all space-y-2.5"
+                             :class="st.isPresent ? 'border-slate-200' : 'border-rose-200 bg-rose-50/20'">
+                            
+                            <!-- Hàng 1: STT + Họ Tên + MSSV/Lớp + Nút Điểm Danh -->
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="min-w-0 space-y-0.5">
+                                    <div class="flex items-center space-x-1.5">
+                                        <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-mono text-[10px] font-bold shrink-0" x-text="'#' + (index + 1)"></span>
+                                        <h3 class="text-xs font-extrabold text-slate-900 truncate" x-text="`${st.hoLot || ''} ${st.ten || ''}`.trim()"></h3>
+                                    </div>
+                                    <div class="flex items-center space-x-2 text-[11px] text-slate-500 pl-0.5">
+                                        <span class="font-mono font-bold text-slate-700" x-text="st.mssv"></span>
+                                        <span>•</span>
+                                        <span class="truncate" x-text="st.className || 'N/A'"></span>
+                                    </div>
+                                </div>
+
+                                <!-- Nút bật/tắt điểm danh nhanh -->
+                                <button @click="toggleAttendance(st)" 
+                                        class="px-2.5 py-1 rounded-full text-[10px] font-extrabold tracking-wide shrink-0 transition-all active:scale-95"
+                                        :class="st.isPresent ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'"
+                                        x-text="st.isPresent ? 'CÓ MẶT' : 'VẮNG'">
+                                </button>
+                            </div>
+
+                            <!-- Hàng 2: Mã đề + Tổng điểm + Nút Nhập Điểm & Xóa -->
+                            <div class="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                                <div class="flex items-center space-x-2 text-xs">
+                                    <span class="px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 font-mono text-[11px] font-bold text-amber-800"
+                                          x-text="st.assignedExam ? `Đề: ${st.assignedExam}` : 'Chưa gán đề'"></span>
+                                    <span class="font-mono font-black text-sm text-blue-600" x-text="(st.totalScore || 0) + ' đ'"></span>
+                                </div>
+
+                                <div class="flex items-center space-x-1.5 shrink-0">
+                                    <button @click="openGradingModal(st)" 
+                                            class="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 active:bg-blue-200 text-blue-700 font-bold text-[11px] rounded-lg border border-blue-200 transition-all flex items-center space-x-1">
+                                        <i class="fa-solid fa-pen-to-square"></i>
+                                        <span>Chấm điểm</span>
+                                    </button>
+                                    <button @click="confirmDeleteStudent(st)" 
+                                            title="Xóa thí sinh"
+                                            class="w-7 h-7 flex items-center justify-center rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-all">
+                                        <i class="fa-solid fa-trash-can text-[11px]"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- 2. GIAO DIỆN BẢNG TRÊN MÁY TÍNH / TABLET (>= 768px) -->
+                <div x-show="students.length > 0" class="hidden md:block overflow-x-auto rounded-b-2xl">
                     <table class="w-full text-left text-xs text-slate-600">
                         <thead class="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
                             <tr>
