@@ -78,12 +78,12 @@ document.addEventListener('alpine:init', () => {
             ]
         },
         picker: {
-            rawExamList: "Đề 1\nĐề 2\nĐề 3\nĐề 4\nĐề 5\nĐề 6\nĐề 7\nĐề 8",
-            currentDisplay: "",
-            isSpinning: false,
+            rawExamList: "Đề 1\nĐề 2...", 
+            currentDisplay: "", 
+            isSpinning: false, 
             targetStudentId: "",
-            allowDuplicate: false
-        },
+            allowDuplicate: false 
+        }
         students: [],
         newStudent: { mssv: '', hoLot: '', ten: '', className: '' },
         logs: [],
