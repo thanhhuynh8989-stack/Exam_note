@@ -273,9 +273,8 @@ function createExamAppState() {
             if (this._syncManager) this._syncManager.disconnect(true);
         },
         broadcastSyncState() {
-            if (!this._isApplyingRemote && this._syncManager) {
-                this._syncManager.broadcast(this._syncManager.getAppState());
-            }
+            if (this._isApplyingRemote || !this._syncManager) return;
+            this._syncManager.broadcast(this._syncManager.getAppState());
         },
 
         // --- Quản lý & Lưu trữ Suất thi ---
@@ -496,29 +495,35 @@ function createExamAppState() {
             };
         },
 
-        saveToLocalStorage() {
+       saveToLocalStorage() {
             const prevStudents = this._lastSavedStudents || [];
+            const nextConfigStr = JSON.stringify(this.config || {});
+
             if (!this._isApplyingRemote) {
                 this.students = syncBridgeModule.stampStudentUpdates(prevStudents, this.students);
+
                 if (!this._skipAutoDiffLog) {
                     this.detectAndLogLocalDiffs(prevStudents, this.students);
-                    const nextConfigStr = JSON.stringify(this.config || {});
                     if (this._lastSavedConfigStr && nextConfigStr !== this._lastSavedConfigStr) {
                         clearTimeout(this._configLogDebounceTimer);
                         this._configLogDebounceTimer = setTimeout(() => {
                             this.recordAuditLog(`Cập nhật thông tin cấu hình / thang điểm ca thi (Phòng ${this.config.roomName || '---'})`);
                         }, 1500);
                     }
-                    this._lastSavedConfigStr = nextConfigStr;
                 }
+                this._lastSavedConfigStr = nextConfigStr;
             } else {
-                this._lastSavedConfigStr = JSON.stringify(this.config || {});
+                this._lastSavedConfigStr = nextConfigStr;
             }
 
             this._lastSavedStudents = JSON.parse(JSON.stringify(this.students));
             storageModule.saveToLocalStorage(this);
-            this.broadcastSyncState();
+
+            if (!this._isApplyingRemote) {
+                this.broadcastSyncState();
+            }
         },
+       
         loadFromLocalStorage() { storageModule.loadFromLocalStorage(this); },
 
         // --- Thời gian thi tiếng Việt & Helpers ---
