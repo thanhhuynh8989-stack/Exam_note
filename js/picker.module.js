@@ -14,15 +14,16 @@ export const pickerModule = {
             return;
         }
 
-        if (app.picker.targetStudentId === 'ALL' && app.students.length === 0) {
-            app.triggerToast("Danh sách sinh viên đang trống!", "warning");
+        const presentStudents = (app.students || []).filter(st => st.isPresent !== false);
+
+        if (app.picker.targetStudentId === 'ALL' && presentStudents.length === 0) {
+            app.triggerToast("Không có thí sinh nào đang có mặt để phát đề!", "warning");
             return;
         }
 
-        // Tự động bật trùng đề nếu số đề ít hơn số SV
-        if (app.picker.targetStudentId === 'ALL' && !app.picker.allowDuplicate && exams.length < app.students.length) {
+        if (app.picker.targetStudentId === 'ALL' && !app.picker.allowDuplicate && exams.length < presentStudents.length) {
             app.picker.allowDuplicate = true;
-            app.triggerToast(`Số đề (${exams.length}) ít hơn số SV (${app.students.length}). Đã tự động bật cho phép trùng đề!`, 'warning');
+            app.triggerToast(`Số đề (${exams.length}) ít hơn số SV có mặt (${presentStudents.length}). Đã tự động bật cho phép trùng đề!`, 'warning');
         }
 
         app.picker.isSpinning = true;
@@ -38,36 +39,45 @@ export const pickerModule = {
                 clearInterval(spinInterval);
                 app.picker.isSpinning = false;
 
-                // TH1: GÁN CHO TOÀN BỘ SINH VIÊN
+                // TH1: GÁN CHO TOÀN BỘ SINH VIÊN CÓ MẶT
                 if (app.picker.targetStudentId === 'ALL') {
                     if (app.picker.allowDuplicate) {
-                        // Cho phép trùng đề: Chọn ngẫu nhiên độc lập từng đề cho mỗi SV
-                        app.students.forEach(st => {
+                        presentStudents.forEach(st => {
                             const randIdx = Math.floor(Math.random() * exams.length);
                             st.assignedExam = exams[randIdx];
                         });
                     } else {
-                        // Không trùng đề: Trộn ngẫu nhiên danh sách đề và gán
                         const shuffledExams = [...exams].sort(() => Math.random() - 0.5);
-                        app.students.forEach((st, idx) => {
+                        presentStudents.forEach((st, idx) => {
                             st.assignedExam = shuffledExams[idx % shuffledExams.length];
                         });
                     }
                     app.picker.currentDisplay = "ĐÃ GÁN XONG";
-                    app.saveToLocalStorage();
-                    app.triggerToast(`Đã gán ngẫu nhiên đề thi cho toàn bộ ${app.students.length} sinh viên!`, "success");
-                
+                    if (app.recordAuditLog) {
+                        app.recordAuditLog(`Bốc thăm phát đề ngẫu nhiên hàng loạt cho ${presentStudents.length} thí sinh có mặt`);
+                    } else {
+                        app.saveToLocalStorage();
+                    }
+                    app.triggerToast(`Đã gán ngẫu nhiên đề thi cho ${presentStudents.length} sinh viên có mặt!`, "success");
+
                 // TH2: GÁN CHO 1 SINH VIÊN CỤ THỂ
                 } else if (app.picker.targetStudentId) {
                     const selectedExam = app.picker.currentDisplay;
                     const target = app.students.find(s => s.id === app.picker.targetStudentId);
                     if (target) {
                         target.assignedExam = selectedExam;
-                        app.saveToLocalStorage();
+                        if (app.recordAuditLog) {
+                            app.recordAuditLog(`Bốc thăm gán mã đề "${selectedExam}" cho SV ${target.hoLot} ${target.ten} (${target.mssv})`);
+                        } else {
+                            app.saveToLocalStorage();
+                        }
                         app.triggerToast(`Đã gán mã đề "${selectedExam}" cho sinh viên ${target.hoLot} ${target.ten}!`, "success");
                     }
                 } else {
                     // TH3: BỐC TỰ DO KHÔNG GÁN
+                    if (app.recordAuditLog) {
+                        app.recordAuditLog(`Quay thử bốc thăm ngẫu nhiên ra: ${app.picker.currentDisplay}`);
+                    }
                     app.triggerToast(`Đề được bốc: ${app.picker.currentDisplay}`, "info");
                 }
             }
