@@ -84,8 +84,8 @@ export const TIPS_DATA = {
                 desc: 'Hai giám thị có thể chấm 2 phần thi khác nhau của cùng 1 thí sinh trên 2 máy mà không bị ghi đè điểm.'
             },
             {
-                title: 'Xuất bảng điểm & In phiếu A4',
-                desc: 'Dùng thanh công cụ phía trên để xuất file Excel tổng hợp hoặc mở bản xem trước in danh sách chuẩn A4.'
+                title: 'Xuất bảng điểm & Danh sách Thí sinh',
+                desc: 'Dùng thanh công cụ phía trên để xuất file Excel tổng hợp hoặc mở bản xem trước in danh sách thí sinh chuẩn A4.'
             }
         ]
     },
@@ -105,8 +105,8 @@ export const TIPS_DATA = {
                 desc: 'Điền Tên học phần, Mã HP, Lớp, Phòng thi, Giám thị 1 & 2 để tự động hiển thị trên phiếu in A4 và file Excel.'
             },
             {
-                title: 'Cơ cấu phần thi & Nạp điểm Excel',
-                desc: 'Thêm/bớt các cột điểm, đặt điểm tối đa, quy tắc làm tròn hoặc nạp điểm trực tiếp từ file Excel (Cột C & I).'
+                title: 'Cơ cấu phần thi & Nạp điểm từng phần',
+                desc: 'Thêm/bớt các cột điểm, đặt điểm tối đa, quy tắc làm tròn hoặc nạp điểm trực tiếp từ file Excel (Cột B là Mã Thí sinh & D là Điểm số).'
             },
             {
                 title: 'Lưu trữ nhiều suất thi',
