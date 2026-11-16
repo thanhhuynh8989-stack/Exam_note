@@ -328,7 +328,25 @@ function createExamAppState() {
         },
 
         // --- Student & Grading actions ---
-        openGradingModal(st) { studentModule.openGradingModal(this, st); },
+        openGradingModal(st) {
+            studentModule.openGradingModal(this, st);
+            if (this.activeStudent) {
+                if (!Array.isArray(this.activeStudent.scores)) {
+                    this.activeStudent.scores = [];
+                }
+                while (this.activeStudent.scores.length < this.config.sections.length) {
+                    this.activeStudent.scores.push(0);
+                }
+            }
+        },
+        isGradingScoreInvalid(idx) {
+            if (!this.activeStudent || !Array.isArray(this.activeStudent.scores)) return false;
+            const sec = this.config.sections[idx];
+            if (!sec) return false;
+            const val = Number(this.activeStudent.scores[idx]);
+            return Number.isNaN(val) || val < 0 || val > Number(sec.maxScore);
+        },
+        
         calculateTotalScore(st) { studentModule.calculateTotalScore(this, st); },
 
         toggleAttendance(st) {
