@@ -56,10 +56,10 @@ export const scoreImportModule = {
                     const row = rows[i];
                     if (!row || row.length < 9) continue;
 
-                    const normMssv = this.normalizeStudentId(row[2]); // Cột C: Mã Sinh Viên
+                    const normMssv = this.normalizeStudentId(row[1]); // Cột B: Mã Sinh Viên
                     if (!normMssv || normMssv === 'MÃSINHVIÊN' || normMssv === 'MSSV') continue;
 
-                    const rawScoreStr = String(row[8] ?? '').trim().replace(',', '.'); // Cột I: Điểm số
+                    const rawScoreStr = String(row[3] ?? '').trim().replace(',', '.'); // Cột C: Điểm số
                     const rawScore = parseFloat(rawScoreStr);
 
                     if (!isNaN(rawScore)) {
@@ -73,7 +73,7 @@ export const scoreImportModule = {
                 }
 
                 if (exactScoreMap.size === 0) {
-                    app.triggerToast('Không đọc được dữ liệu hợp lệ ở Cột C (Mã SV) và Cột I (Điểm số)!', 'error');
+                    app.triggerToast('Không đọc được dữ liệu hợp lệ ở Cột B (Mã SV) và Cột C (Điểm số)!', 'error');
                     return;
                 }
 
