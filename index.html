@@ -612,39 +612,43 @@
         <!-- ==================== MODAL 2: CHẤM ĐIỂM THÍ SINH ==================== -->
         <div x-show="showGradingModal && activeStudent" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
             <div @click.away="showGradingModal = false" class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <div>
-                        <h3 class="text-lg font-extrabold text-slate-900" x-text="activeStudent ? `${activeStudent.hoLot} ${activeStudent.ten}` : ''"></h3>
-                        <p class="text-xs font-mono text-slate-500" x-text="activeStudent ? `MSSV: ${activeStudent.mssv} • Đề: ${activeStudent.assignedExam || 'Chưa có'}` : ''"></p>
-                    </div>
-                    <button @click="showGradingModal = false" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer"><i data-lucide="x" class="w-5 h-5"></i></button>
-                </div>
-
-                <div class="space-y-3">
-                    <template x-for="(sec, idx) in config.sections" :key="idx">
-                        <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+                <template x-if="activeStudent">
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                             <div>
-                                <div class="text-sm font-bold text-slate-800" x-text="sec.title || ('Phần ' + (idx+1))"></div>
-                                <div class="text-xs text-slate-500" x-text="`Tối đa: ${sec.maxScore} điểm`"></div>
+                                <h3 class="text-lg font-extrabold text-slate-900" x-text="`${activeStudent.hoLot} ${activeStudent.ten}`"></h3>
+                                <p class="text-xs font-mono text-slate-500" x-text="`MSSV: ${activeStudent.mssv} • Đề: ${activeStudent.assignedExam || 'Chưa có'}`"></p>
                             </div>
-                            <input type="number" step="0.25" min="0" :max="sec.maxScore"
-                                   x-model.number="activeStudent.scores[idx]"
-                                   @input="calculateTotalScore(activeStudent)"
-                                   :class="(Number(activeStudent.scores[idx]) > Number(sec.maxScore) || Number(activeStudent.scores[idx]) < 0) ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-slate-300 bg-white'"
-                                   class="w-24 px-3 py-2 rounded-xl border font-mono text-base font-extrabold text-center">
+                            <button @click="showGradingModal = false" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer"><i data-lucide="x" class="w-5 h-5"></i></button>
                         </div>
-                    </template>
-                </div>
 
-                <div class="p-4 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-between">
-                    <span class="text-sm font-bold text-indigo-900">Tổng điểm đạt được:</span>
-                    <span class="font-mono text-2xl font-extrabold text-indigo-700" x-text="activeStudent ? activeStudent.totalScore : 0"></span>
-                </div>
+                        <div class="space-y-3">
+                            <template x-for="(sec, idx) in config.sections" :key="idx">
+                                <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+                                    <div>
+                                        <div class="text-sm font-bold text-slate-800" x-text="sec.title || ('Phần ' + (idx+1))"></div>
+                                        <div class="text-xs text-slate-500" x-text="`Tối đa: ${sec.maxScore} điểm`"></div>
+                                    </div>
+                                    <input type="number" step="0.25" min="0" :max="sec.maxScore"
+                                           x-model.number="activeStudent.scores[idx]"
+                                           @input="calculateTotalScore(activeStudent)"
+                                           :class="isGradingScoreInvalid(idx) ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-slate-300 bg-white'"
+                                           class="w-24 px-3 py-2 rounded-xl border font-mono text-base font-extrabold text-center">
+                                </div>
+                            </template>
+                        </div>
 
-                <div class="flex justify-end gap-2 pt-2">
-                    <button @click="showGradingModal = false" class="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold cursor-pointer">Đóng</button>
-                    <button @click="saveGradingModal()" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold cursor-pointer">Lưu bảng điểm</button>
-                </div>
+                        <div class="p-4 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-between">
+                            <span class="text-sm font-bold text-indigo-900">Tổng điểm đạt được:</span>
+                            <span class="font-mono text-2xl font-extrabold text-indigo-700" x-text="activeStudent.totalScore ?? 0"></span>
+                        </div>
+
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button @click="showGradingModal = false" class="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold cursor-pointer">Đóng</button>
+                            <button @click="saveGradingModal()" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold cursor-pointer">Lưu bảng điểm</button>
+                        </div>
+                    </div>
+                </template>
             </div>
         </div>
 
