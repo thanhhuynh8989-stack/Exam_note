@@ -4,11 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sổ Giám Sát Thi & Chấm Điểm Chi Tiết</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
 
-    <!-- Tailwind CSS & Alpine.js & SheetJS -->
+    <!-- Tailwind CSS & SheetJS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+
     <!-- PeerJS cho Đồng bộ P2P & QRCode.js cho mã QR vào phòng -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -45,7 +46,10 @@
         }
     </script>
 </head>
-<body class="bg-slate-50 text-slate-900 font-sans antialiased selection:bg-indigo-100 selection:text-indigo-900" x-data="examApp()" x-init="initApp()">
+<body class="bg-slate-50 text-slate-900 font-sans antialiased selection:bg-indigo-100 selection:text-indigo-900"
+      x-data="examApp()"
+      x-init="initApp()"
+      x-effect="students.length; activeTab; $nextTick(() => window.lucide && lucide.createIcons())">
 
     <!-- ======================== PHẦN GIAO DIỆN WEB (ẨN KHI IN) ======================== -->
     <div class="no-print min-h-screen flex flex-col">
@@ -196,7 +200,8 @@
                             <button @click="toggleTimer()"
                                     :class="timer.isRunning ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'"
                                     class="px-7 py-3.5 rounded-2xl text-white font-bold text-base shadow-lg flex items-center gap-2.5 transition cursor-pointer">
-                                <i :data-lucide="timer.isRunning ? 'pause' : 'play'" class="w-5 h-5"></i>
+                                <i x-show="!timer.isRunning" data-lucide="play" class="w-5 h-5"></i>
+                                <i x-show="timer.isRunning" x-cloak data-lucide="pause" class="w-5 h-5"></i>
                                 <span x-text="timer.isRunning ? 'Tạm dừng' : 'Bắt đầu tính giờ'"></span>
                             </button>
 
@@ -235,7 +240,10 @@
                             <div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
                                 <i data-lucide="scroll-text" class="w-4 h-4"></i>
                             </div>
-                            <h2 class="text-base font-bold text-slate-900">Nhật ký phòng thi</h2>
+                            <div>
+                                <h2 class="text-base font-bold text-slate-900">Nhật ký phòng thi</h2>
+                                <p class="text-[11px] text-slate-400">Tự động lưu cập nhật từ mọi thiết bị Giám sát</p>
+                            </div>
                         </div>
                         <span class="text-xs font-semibold text-slate-400" x-text="logs.length + ' ghi nhận'"></span>
                     </div>
@@ -257,9 +265,12 @@
                                 <p class="text-sm font-medium">Chưa có ghi nhận nào trong ca thi</p>
                             </div>
                         </template>
-                        <template x-for="(log, index) in logs" :key="index">
-                            <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/70 flex items-start gap-3">
-                                <span class="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded shrink-0 mt-0.5" x-text="log.time"></span>
+                        <template x-for="(log, index) in logs" :key="log.id || index">
+                            <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/70 space-y-1">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="font-mono text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded" x-text="log.time"></span>
+                                    <span x-show="log.device" class="text-[10px] font-bold text-slate-600 bg-slate-200/70 px-2 py-0.5 rounded truncate max-w-[180px]" x-text="log.device"></span>
+                                </div>
                                 <p class="text-sm text-slate-700 leading-snug break-words" x-text="log.text"></p>
                             </div>
                         </template>
@@ -565,7 +576,7 @@
         </main>
 
         <!-- ==================== MODAL 1: THÊM THÍ SINH THỦ CÔNG ==================== -->
-        <div x-show="showAddStudentModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+        <div x-show="showAddStudentModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
             <div @click.away="showAddStudentModal = false" class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
                 <div class="flex items-center justify-between">
                     <h3 class="text-lg font-extrabold text-slate-900">Thêm thí sinh mới</h3>
@@ -599,7 +610,7 @@
         </div>
 
         <!-- ==================== MODAL 2: CHẤM ĐIỂM THÍ SINH ==================== -->
-        <div x-show="showGradingModal && activeStudent" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+        <div x-show="showGradingModal && activeStudent" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
             <div @click.away="showGradingModal = false" class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
                 <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                     <div>
@@ -619,7 +630,7 @@
                             <input type="number" step="0.25" min="0" :max="sec.maxScore"
                                    x-model.number="activeStudent.scores[idx]"
                                    @input="calculateTotalScore(activeStudent)"
-                                   :class="(Number(activeStudent.scores[idx]) > Number(sec.maxScore)) ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-slate-300 bg-white'"
+                                   :class="(Number(activeStudent.scores[idx]) > Number(sec.maxScore) || Number(activeStudent.scores[idx]) < 0) ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-slate-300 bg-white'"
                                    class="w-24 px-3 py-2 rounded-xl border font-mono text-base font-extrabold text-center">
                         </div>
                     </template>
@@ -638,7 +649,7 @@
         </div>
 
         <!-- ==================== MODAL 3: ĐỒNG BỘ TRỰC TIẾP P2P ==================== -->
-        <div x-show="syncState.showModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+        <div x-show="syncState.showModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
             <div @click.away="closeSyncModal()" class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
                 <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                     <h3 class="text-lg font-extrabold text-slate-900 flex items-center gap-2">
@@ -730,7 +741,7 @@
         </div>
 
         <!-- ==================== MODAL 4: QUẢN LÝ SUẤT THI ==================== -->
-        <div x-show="sessionState.showModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+        <div x-show="sessionState.showModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
             <div @click.away="sessionState.showModal = false" class="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
                 <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                     <h3 class="text-lg font-extrabold text-slate-900">Kho lưu trữ Suất thi</h3>
@@ -740,11 +751,11 @@
                 <!-- Lưu ca hiện tại -->
                 <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
                     <div class="text-xs font-bold text-slate-700">Lưu dữ liệu ca thi hiện tại vào bộ nhớ trình duyệt:</div>
-                    <div class="flex flex-wrap gap-2">
-                        <input type="password" x-model="sessionState.newPassword" placeholder="Mật khẩu bảo vệ (tùy chọn)" class="flex-1 min-w-[160px] px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs">
-                        <button @click="saveCurrentSession(false)" class="px-3.5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold cursor-pointer">Lưu suất mới</button>
-                        <button x-show="sessionState.currentSessionId" @click="saveCurrentSession(true)" class="px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold cursor-pointer">Cập nhật suất đang mở</button>
-                    </div>
+                    <form @submit.prevent="saveCurrentSession(false)" class="flex flex-wrap gap-2">
+                        <input type="password" autocomplete="new-password" x-model="sessionState.newPassword" placeholder="Mật khẩu bảo vệ (tùy chọn)" class="flex-1 min-w-[160px] px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs">
+                        <button type="submit" class="px-3.5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold cursor-pointer">Lưu suất mới</button>
+                        <button type="button" x-show="sessionState.currentSessionId" @click="saveCurrentSession(true)" class="px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold cursor-pointer">Cập nhật suất đang mở</button>
+                    </form>
                 </div>
 
                 <!-- Xuất / Nhập file JSON dự phòng -->
@@ -778,10 +789,10 @@
                 <!-- Hộp thoại xác thực mật khẩu suất thi -->
                 <div x-show="sessionState.authPrompt.show" class="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-2">
                     <div class="text-xs font-bold text-amber-900">Nhập mật khẩu để tiếp tục thao tác:</div>
-                    <div class="flex gap-2">
-                        <input type="password" x-model="sessionState.authPrompt.inputPassword" class="flex-1 px-3 py-1.5 rounded-lg border border-amber-300 bg-white text-xs">
-                        <button @click="verifySessionPassword()" class="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold cursor-pointer">Xác nhận</button>
-                    </div>
+                    <form @submit.prevent="verifySessionPassword()" class="flex gap-2">
+                        <input type="password" autocomplete="current-password" x-model="sessionState.authPrompt.inputPassword" class="flex-1 px-3 py-1.5 rounded-lg border border-amber-300 bg-white text-xs">
+                        <button type="submit" class="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold cursor-pointer">Xác nhận</button>
+                    </form>
                     <p x-show="sessionState.authPrompt.errorMsg" x-text="sessionState.authPrompt.errorMsg" class="text-xs font-bold text-rose-600"></p>
                 </div>
             </div>
