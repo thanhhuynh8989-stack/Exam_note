@@ -11,6 +11,9 @@ import { scoreImportModule } from './js/score-import.module.js';
 function createExamAppState() {
     return {
         activeTab: 'timer',
+        isLogExpanded: false,
+        isScoreExpanded: false,
+        isScoreFullscreen: false,
         mobileMenuOpen: false,
         currentSystemTime: '',
         isZaloBrowser: false,
@@ -302,6 +305,20 @@ function createExamAppState() {
         toggleFullscreen() {
             if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
             else if (document.exitFullscreen) document.exitFullscreen();
+        },
+
+        // --- Fullscreen of Score-List ---
+        openScoreFullscreen() {
+            this.isScoreFullscreen = true;
+            if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            }
+        },
+        closeScoreFullscreen() {
+            this.isScoreFullscreen = false;
+            if (document.fullscreenElement && document.exitFullscreen) {
+                document.exitFullscreen().catch(() => {});
+            }
         },
 
         // --- Timer actions ---
