@@ -49,7 +49,7 @@
 <body class="bg-slate-50 text-slate-900 font-sans antialiased selection:bg-indigo-100 selection:text-indigo-900"
       x-data="examApp()"
       x-init="initApp()"
-      x-effect="students.length; activeTab; isLogExpanded; isScoreExpanded; isScoreFullscreen; $nextTick(() => window.lucide && lucide.createIcons())">
+      x-effect="students.length; activeTab; isLogExpanded; isScoreExpanded; isScoreFullscreen; tipsState.showModal; tipsState.selectedKey; $nextTick(() => window.lucide && lucide.createIcons())">
 
     <!-- ======================== PHẦN GIAO DIỆN WEB (ẨN KHI IN) ======================== -->
     <div class="no-print min-h-screen flex flex-col">
@@ -108,6 +108,15 @@
 
                 <!-- Right Action Controls -->
                 <div class="flex items-center gap-2 shrink-0">
+                    <!-- Nút Icon Tips (Hướng dẫn nhanh theo màn hình) -->
+                    <button type="button"
+                            @click="openTipsModal()"
+                            class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                            title="Mẹo & Hướng dẫn sử dụng màn hình hiện tại">
+                        <i data-lucide="lightbulb" class="w-4 h-4 text-amber-500"></i>
+                        <span class="hidden sm:inline">Tips</span>
+                    </button>
+
                     <!-- Nút Quản lý Suất thi -->
                     <button @click="openSessionModal()" class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 border border-slate-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer" title="Lưu trữ & Quản lý nhiều suất thi">
                         <i data-lucide="folder-archive" class="w-4 h-4 text-indigo-600"></i>
@@ -160,7 +169,60 @@
         </header>
 
         <!-- MAIN WORKSPACE -->
-        <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
+
+            <!-- ==================== BANNER MẸO NHANH THU GỌN THEO TỪNG TAB ==================== -->
+            <div class="no-print bg-amber-50/90 border border-amber-200/80 rounded-2xl shadow-2xs overflow-hidden transition">
+                <!-- Thanh tóm tắt 1 dòng (Bấm để mở rộng / thu gọn) -->
+                <div @click="toggleTipsBanner()"
+                     role="button"
+                     tabindex="0"
+                     class="px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-amber-100/60 transition cursor-pointer select-none">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <span class="w-6 h-6 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                            <i data-lucide="lightbulb" class="w-3.5 h-3.5"></i>
+                        </span>
+                        <span class="px-2 py-0.5 rounded-md bg-amber-200/70 text-amber-900 text-[11px] font-extrabold uppercase tracking-wide shrink-0">
+                            Mẹo nhanh
+                        </span>
+                        <p class="text-xs font-medium text-amber-950 truncate"
+                           x-text="getCurrentTabTips().quickHint"></p>
+                    </div>
+
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button type="button"
+                                @click.stop="openTipsModal()"
+                                class="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/80 hover:bg-white border border-amber-200 text-amber-800 text-[11px] font-bold transition cursor-pointer">
+                            <span>Tất cả hướng dẫn</span>
+                        </button>
+                        <span class="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700">
+                            <span x-text="tipsState.bannerExpanded ? 'Thu gọn' : 'Chi tiết'"></span>
+                            <i data-lucide="chevron-down"
+                               class="w-3.5 h-3.5 transition-transform duration-200"
+                               :class="tipsState.bannerExpanded ? 'rotate-180' : ''"></i>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Nội dung chi tiết khi bấm mở rộng banner -->
+                <div x-show="tipsState.bannerExpanded"
+                     x-collapse
+                     x-cloak
+                     class="px-4 pb-3.5 pt-2.5 border-t border-amber-200/70 bg-white/75">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                        <template x-for="(tip, idx) in getCurrentTabTips().items" :key="idx">
+                            <div class="p-2.5 rounded-xl bg-amber-50/70 border border-amber-100 flex items-start gap-2">
+                                <span class="w-4 h-4 rounded-full bg-amber-200/80 text-amber-900 text-[10px] font-extrabold flex items-center justify-center shrink-0 mt-0.5"
+                                      x-text="idx + 1"></span>
+                                <div class="text-[11px] leading-snug text-slate-700">
+                                    <strong class="text-slate-900 block mb-0.5" x-text="tip.title"></strong>
+                                    <span x-text="tip.desc"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
 
             <!-- ==================== TAB 1: ĐỒNG HỒ & NHẬT KÝ ==================== -->
             <section x-show="activeTab === 'timer'" x-transition.opacity class="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -815,6 +877,7 @@
                             <div id="p2p-qr-reader" class="w-full"></div>
                             <button type="button" @click="stopQrScanner()" class="w-full py-1.5 bg-rose-600 text-white text-xs font-bold">Tắt Camera</button>
                         </div>
+                        <div id="p2p-qr-file-temp" class="hidden"></div>
                         <p x-show="syncState.authError" x-text="syncState.authError" class="text-xs font-bold text-rose-600"></p>
                     </div>
                 </div>
@@ -919,6 +982,78 @@
                         <button type="submit" class="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold cursor-pointer">Xác nhận</button>
                     </form>
                     <p x-show="sessionState.authPrompt.errorMsg" x-text="sessionState.authPrompt.errorMsg" class="text-xs font-bold text-rose-600"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== MODAL 5: TIPS & HƯỚNG DẪN SỬ DỤNG NHANH ==================== -->
+        <div x-show="tipsState.showModal"
+             x-cloak
+             @keydown.escape.window="if (tipsState.showModal) closeTipsModal()"
+             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+            <div @click.away="closeTipsModal()"
+                 class="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden">
+
+                <!-- Header -->
+                <div class="flex items-center justify-between px-6 py-4 bg-amber-50/80 border-b border-amber-100">
+                    <div class="flex items-center gap-3">
+                        <span class="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                            <i data-lucide="lightbulb" class="w-5 h-5"></i>
+                        </span>
+                        <div>
+                            <span class="inline-block text-[11px] font-extrabold uppercase tracking-wider text-amber-700"
+                                  x-text="getActiveTipsSection().badge"></span>
+                            <h3 class="text-base font-extrabold text-slate-900 leading-tight"
+                                x-text="getActiveTipsSection().tabTitle"></h3>
+                        </div>
+                    </div>
+                    <button type="button"
+                            @click="closeTipsModal()"
+                            class="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-white/80 transition cursor-pointer">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <!-- Thanh chuyển nhanh giữa các màn hình -->
+                <div class="flex gap-1.5 px-6 pt-3 pb-2.5 bg-slate-50 border-b border-slate-100 overflow-x-auto">
+                    <template x-for="sec in getAllTipsSections()" :key="sec.key">
+                        <button type="button"
+                                @click="tipsState.selectedKey = sec.key"
+                                :class="tipsState.selectedKey === sec.key
+                                    ? 'bg-slate-900 text-white shadow-xs'
+                                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'"
+                                class="px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer"
+                                x-text="sec.tabTitle.split('&')[0].trim()">
+                        </button>
+                    </template>
+                </div>
+
+                <!-- Nội dung hướng dẫn ngắn gọn -->
+                <div class="p-6 space-y-3 max-h-[65vh] overflow-y-auto">
+                    <p class="text-xs font-medium text-slate-500" x-text="getActiveTipsSection().summary"></p>
+
+                    <ul class="space-y-2.5">
+                        <template x-for="(tip, idx) in getActiveTipsSection().items" :key="idx">
+                            <li class="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-50 border border-slate-200/70">
+                                <span class="w-5 h-5 rounded-full bg-amber-100 text-amber-800 text-xs font-extrabold flex items-center justify-center shrink-0 mt-0.5"
+                                      x-text="idx + 1"></span>
+                                <div class="text-xs leading-relaxed text-slate-700">
+                                    <span class="font-extrabold text-slate-900" x-text="tip.title + ': '"></span>
+                                    <span x-text="tip.desc"></span>
+                                </div>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+
+                <!-- Footer -->
+                <div class="flex items-center justify-between px-6 py-3.5 bg-slate-50 border-t border-slate-100">
+                    <span class="text-[11px] text-slate-400 font-medium">Tự động hiển thị theo màn hình đang mở</span>
+                    <button type="button"
+                            @click="closeTipsModal()"
+                            class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition cursor-pointer">
+                        Đã hiểu
+                    </button>
                 </div>
             </div>
         </div>
