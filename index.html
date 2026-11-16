@@ -49,7 +49,7 @@
 <body class="bg-slate-50 text-slate-900 font-sans antialiased selection:bg-indigo-100 selection:text-indigo-900"
       x-data="examApp()"
       x-init="initApp()"
-      x-effect="students.length; activeTab; $nextTick(() => window.lucide && lucide.createIcons())">
+      x-effect="students.length; activeTab; isLogExpanded; isScoreExpanded; isScoreFullscreen; $nextTick(() => window.lucide && lucide.createIcons())">
 
     <!-- ======================== PHẦN GIAO DIỆN WEB (ẨN KHI IN) ======================== -->
     <div class="no-print min-h-screen flex flex-col">
@@ -233,48 +233,132 @@
                     </div>
                 </div>
 
-                <!-- Cột phải: Nhật ký phòng thi -->
-                <div class="lg:col-span-5 bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col h-[520px]">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="flex items-center gap-2">
-                            <div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-                                <i data-lucide="scroll-text" class="w-4 h-4"></i>
+                <!-- Cột phải: Các thẻ chức năng thu gọn (Nhật ký & Danh sách điểm) -->
+                <div class="lg:col-span-5 flex flex-col gap-4">
+
+                    <!-- THẺ 1: NHẬT KÝ PHÒNG THI (THU GỌN / MỞ RỘNG KHI BẤM) -->
+                    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden transition">
+                        <button type="button"
+                                @click="isLogExpanded = !isLogExpanded"
+                                class="w-full p-5 flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 transition cursor-pointer">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                                    <i data-lucide="scroll-text" class="w-4 h-4"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <h2 class="text-base font-bold text-slate-900">Nhật ký phòng thi</h2>
+                                    <p class="text-[11px] text-slate-400 truncate">Bấm để xem & ghi nhận diễn biến phòng thi</p>
+                                </div>
                             </div>
-                            <div>
-                                <h2 class="text-base font-bold text-slate-900">Nhật ký phòng thi</h2>
-                                <p class="text-[11px] text-slate-400">Tự động lưu cập nhật từ mọi thiết bị Giám sát</p>
+                            <div class="flex items-center gap-2 shrink-0">
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200/70"
+                                      x-text="logs.length + ' ghi nhận'"></span>
+                                <i data-lucide="chevron-down"
+                                   class="w-4 h-4 text-slate-400 transition-transform duration-200"
+                                   :class="isLogExpanded ? 'rotate-180' : ''"></i>
+                            </div>
+                        </button>
+
+                        <div x-show="isLogExpanded" x-collapse x-cloak class="px-5 pb-5 pt-1 border-t border-slate-100">
+                            <!-- Form thêm nhật ký -->
+                            <form @submit.prevent="addLog()" class="flex gap-2 my-3">
+                                <input type="text" x-model="newLogText" placeholder="Ghi nhận sự cố, SV xin ra ngoài, bù giờ..."
+                                       class="flex-1 px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500">
+                                <button type="submit" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold shrink-0 transition cursor-pointer">
+                                    Ghi
+                                </button>
+                            </form>
+
+                            <!-- Danh sách log -->
+                            <div class="max-h-[340px] overflow-y-auto space-y-2 pr-1">
+                                <template x-if="logs.length === 0">
+                                    <div class="flex flex-col items-center justify-center text-center text-slate-400 py-8">
+                                        <i data-lucide="file-clock" class="w-9 h-9 mb-2 opacity-40"></i>
+                                        <p class="text-xs font-medium">Chưa có ghi nhận nào trong ca thi</p>
+                                    </div>
+                                </template>
+                                <template x-for="(log, index) in logs" :key="log.id || index">
+                                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/70 space-y-1">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <span class="font-mono text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded" x-text="log.time"></span>
+                                            <span x-show="log.device" class="text-[10px] font-bold text-slate-600 bg-slate-200/70 px-2 py-0.5 rounded truncate max-w-[170px]" x-text="log.device"></span>
+                                        </div>
+                                        <p class="text-sm text-slate-700 leading-snug break-words" x-text="log.text"></p>
+                                    </div>
+                                </template>
                             </div>
                         </div>
-                        <span class="text-xs font-semibold text-slate-400" x-text="logs.length + ' ghi nhận'"></span>
                     </div>
 
-                    <!-- Form thêm nhật ký -->
-                    <form @submit.prevent="addLog()" class="flex gap-2 mb-4">
-                        <input type="text" x-model="newLogText" placeholder="Ghi nhận sự cố, SV xin ra ngoài, bù giờ..."
-                               class="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500">
-                        <button type="submit" class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold shrink-0 transition cursor-pointer">
-                            Ghi
-                        </button>
-                    </form>
-
-                    <!-- Danh sách log -->
-                    <div class="flex-1 overflow-y-auto space-y-2.5 pr-1">
-                        <template x-if="logs.length === 0">
-                            <div class="h-full flex flex-col items-center justify-center text-center text-slate-400 py-8">
-                                <i data-lucide="file-clock" class="w-10 h-10 mb-2 opacity-40"></i>
-                                <p class="text-sm font-medium">Chưa có ghi nhận nào trong ca thi</p>
-                            </div>
-                        </template>
-                        <template x-for="(log, index) in logs" :key="log.id || index">
-                            <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/70 space-y-1">
-                                <div class="flex items-center justify-between gap-2">
-                                    <span class="font-mono text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded" x-text="log.time"></span>
-                                    <span x-show="log.device" class="text-[10px] font-bold text-slate-600 bg-slate-200/70 px-2 py-0.5 rounded truncate max-w-[180px]" x-text="log.device"></span>
+                    <!-- THẺ 2: DANH SÁCH ĐIỂM (THU GỌN / MỞ RỘNG & XEM TOÀN MÀN HÌNH) -->
+                    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden transition">
+                        <div @click="isScoreExpanded = !isScoreExpanded"
+                             role="button"
+                             tabindex="0"
+                             class="w-full p-5 flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 transition cursor-pointer">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                                    <i data-lucide="award" class="w-4 h-4"></i>
                                 </div>
-                                <p class="text-sm text-slate-700 leading-snug break-words" x-text="log.text"></p>
+                                <div class="min-w-0">
+                                    <h2 class="text-base font-bold text-slate-900">Danh sách điểm</h2>
+                                    <p class="text-[11px] text-slate-400 truncate">Bấm để xem nhanh điểm thí sinh trong phòng</p>
+                                </div>
                             </div>
-                        </template>
+                            <div class="flex items-center gap-2 shrink-0">
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/70"
+                                      x-text="students.length + ' SV'"></span>
+                                <i data-lucide="chevron-down"
+                                   class="w-4 h-4 text-slate-400 transition-transform duration-200"
+                                   :class="isScoreExpanded ? 'rotate-180' : ''"></i>
+                            </div>
+                        </div>
+
+                        <div x-show="isScoreExpanded" x-collapse x-cloak class="px-5 pb-5 pt-2 border-t border-slate-100 space-y-3">
+                            <!-- Thanh điều khiển & Nút Toàn màn hình -->
+                            <div class="flex items-center justify-between gap-2 pt-1">
+                                <span class="text-xs font-semibold text-slate-500">
+                                    Có mặt: <strong class="text-emerald-700" x-text="students.filter(s => s.isPresent !== false).length"></strong>/<span x-text="students.length"></span>
+                                </span>
+                                <button type="button"
+                                        @click.stop="openScoreFullscreen()"
+                                        class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer">
+                                    <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
+                                    <span>Toàn màn hình</span>
+                                </button>
+                            </div>
+
+                            <!-- Lưới các thẻ nhỏ hiển thị Mã SV + Họ và tên + Điểm hiện có -->
+                            <div class="max-h-[360px] overflow-y-auto pr-1">
+                                <template x-if="students.length === 0">
+                                    <div class="flex flex-col items-center justify-center text-center text-slate-400 py-8">
+                                        <i data-lucide="users" class="w-9 h-9 mb-2 opacity-40"></i>
+                                        <p class="text-xs font-medium">Chưa có thí sinh nào trong danh sách</p>
+                                    </div>
+                                </template>
+
+                                <div x-show="students.length > 0" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <template x-for="(st, idx) in students" :key="st.id">
+                                        <div class="p-2.5 rounded-xl border flex items-center justify-between gap-2 transition"
+                                             :class="st.isPresent === false ? 'bg-rose-50/50 border-rose-200' : 'bg-slate-50/80 border-slate-200/80'">
+                                            <div class="min-w-0">
+                                                <div class="flex items-center gap-1.5">
+                                                    <span class="font-mono text-[11px] font-bold text-slate-500" x-text="st.mssv"></span>
+                                                    <span x-show="st.isPresent === false" class="px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 text-[10px] font-bold">Vắng</span>
+                                                </div>
+                                                <div class="text-xs font-bold text-slate-900 truncate" x-text="`${st.hoLot} ${st.ten}`"></div>
+                                            </div>
+                                            <div class="shrink-0 text-right">
+                                                <span class="font-mono text-sm font-extrabold text-indigo-700 bg-white px-2 py-1 rounded-lg border border-indigo-100 shadow-2xs inline-block"
+                                                      x-text="(st.totalScore ?? 0) + 'đ'"></span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+
                 </div>
             </section>
 
@@ -860,6 +944,103 @@
                     <button @click="removeToast(t.id)" class="text-slate-400 hover:text-slate-600 cursor-pointer">✕</button>
                 </div>
             </template>
+        </div>
+    </div>
+
+    <!-- ==================== CHẾ ĐỘ TOÀN MÀN HÌNH DANH SÁCH ĐIỂM ==================== -->
+    <div x-show="isScoreFullscreen"
+         x-cloak
+         @keydown.escape.window="if (isScoreFullscreen) closeScoreFullscreen()"
+         class="no-print fixed inset-0 z-50 bg-slate-100 flex flex-col overflow-hidden">
+
+        <!-- Thanh tiêu đề trên cùng: Đồng hồ thu nhỏ ở góc trên bên trái -->
+        <div class="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 shadow-xs flex flex-wrap items-center justify-between gap-4 shrink-0">
+            
+            <!-- GÓC TRÊN BÊN TRÁI: ĐỒNG HỒ ĐẾM NGƯỢC THU NHỎ -->
+            <div class="flex items-center gap-3 bg-slate-900 text-white px-3.5 py-2 rounded-2xl shadow-sm">
+                <span class="w-2.5 h-2.5 rounded-full shrink-0"
+                      :class="timer.isRunning ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'"></span>
+                <div>
+                    <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold leading-none mb-0.5">
+                        Thời gian còn lại
+                    </div>
+                    <div class="font-mono text-xl sm:text-2xl font-extrabold tracking-tight tabular-nums leading-none"
+                         :class="timer.timeLeft <= 300 ? 'text-rose-400' : 'text-white'"
+                         x-text="formatTime(timer.timeLeft)"></div>
+                </div>
+                <button type="button"
+                        @click="toggleTimer()"
+                        class="ml-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition cursor-pointer"
+                        :class="timer.isRunning ? 'bg-amber-500 hover:bg-amber-600 text-slate-950' : 'bg-indigo-600 hover:bg-indigo-500 text-white'"
+                        x-text="timer.isRunning ? 'Tạm dừng' : 'Chạy'">
+                </button>
+            </div>
+
+            <!-- Thông tin ca thi ở giữa -->
+            <div class="text-center flex-1 min-w-[200px]">
+                <h2 class="text-base sm:text-lg font-extrabold text-slate-900 uppercase tracking-tight">
+                    Bảng Điểm Phòng Thi • <span class="text-indigo-700" x-text="config.subjectName"></span>
+                </h2>
+                <p class="text-xs text-slate-500 font-medium">
+                    Phòng <strong class="text-slate-800" x-text="config.roomName || '---'"></strong> •
+                    Sĩ số: <strong class="text-slate-800" x-text="students.length"></strong> •
+                    Có mặt: <strong class="text-emerald-700" x-text="students.filter(s => s.isPresent !== false).length"></strong>
+                </p>
+            </div>
+
+            <!-- Nút thoát toàn màn hình ở góc trên bên phải -->
+            <button type="button"
+                    @click="closeScoreFullscreen()"
+                    class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold flex items-center gap-2 shadow-xs transition cursor-pointer shrink-0">
+                <i data-lucide="minimize-2" class="w-4 h-4"></i>
+                <span>Thoát toàn màn hình</span>
+            </button>
+        </div>
+
+        <!-- Lưới thẻ điểm thí sinh phóng rộng dễ quan sát -->
+        <div class="flex-1 overflow-y-auto p-4 sm:p-6">
+            <template x-if="students.length === 0">
+                <div class="h-full flex flex-col items-center justify-center text-slate-400">
+                    <i data-lucide="users" class="w-12 h-12 mb-2 opacity-40"></i>
+                    <p class="text-sm font-semibold">Chưa có dữ liệu thí sinh trong danh sách</p>
+                </div>
+            </template>
+
+            <div x-show="students.length > 0" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                <template x-for="(st, idx) in students" :key="st.id">
+                    <div class="rounded-2xl border p-3.5 shadow-2xs flex flex-col justify-between gap-2 transition"
+                         :class="st.isPresent === false ? 'bg-rose-50/70 border-rose-200' : 'bg-white border-slate-200'">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="text-[11px] font-mono font-bold text-slate-400" x-text="'#' + (idx + 1)"></span>
+                                    <span class="font-mono text-xs font-extrabold text-indigo-700" x-text="st.mssv"></span>
+                                </div>
+                                <div class="text-sm font-extrabold text-slate-900 truncate mt-0.5" x-text="`${st.hoLot} ${st.ten}`"></div>
+                            </div>
+
+                            <span x-show="st.isPresent === false"
+                                  class="px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 text-[10px] font-extrabold shrink-0">
+                                Vắng
+                            </span>
+                        </div>
+
+                        <!-- Chi tiết điểm từng phần & Tổng điểm -->
+                        <div class="pt-2 border-t border-slate-100 flex items-end justify-between gap-2">
+                            <div class="flex flex-wrap gap-1">
+                                <template x-for="(sec, sIdx) in config.sections" :key="sIdx">
+                                    <span class="px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-semibold text-slate-600">
+                                        <span x-text="'P' + (sIdx + 1) + ':'"></span>
+                                        <strong class="font-mono text-slate-800" x-text="(st.scores && st.scores[sIdx] !== undefined) ? st.scores[sIdx] : 0"></strong>
+                                    </span>
+                                </template>
+                            </div>
+                            <div class="font-mono text-xl font-extrabold text-indigo-700 leading-none shrink-0"
+                                 x-text="(st.totalScore ?? 0) + 'đ'"></div>
+                        </div>
+                    </div>
+                </template>
+            </div>
         </div>
     </div>
 
