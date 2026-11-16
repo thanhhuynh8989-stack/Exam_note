@@ -83,7 +83,7 @@ document.addEventListener('alpine:init', () => {
             isSpinning: false, 
             targetStudentId: "",
             allowDuplicate: false 
-        }
+        },
         students: [],
         newStudent: { mssv: '', hoLot: '', ten: '', className: '' },
         logs: [],
