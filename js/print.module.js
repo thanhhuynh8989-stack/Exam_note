@@ -38,7 +38,7 @@ export const printModule = {
                 studentRowsHTML += `
                     <tr style="height: 25px;">
                         <td style="text-align: center;">${idx + 1}</td>
-                        <td style="font-family: monospace; font-weight: bold; text-align: center;">${st.mssv || ''}</td>
+                        <td style="text-align: center; font-size: 8.5pt;">${st.mssv || ''}</td>
                         <td class="col-holot" style="text-align: left; padding-left: 5px;">${st.hoLot || ''}</td>
                         <td class="col-ten" style="text-align: left; padding-left: 5px; font-weight: bold;">${st.ten || ''}</td>
                         <td style="text-align: center; font-size: 8.5pt;">${khoiLop}</td>
