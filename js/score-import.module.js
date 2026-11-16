@@ -50,6 +50,7 @@ export const scoreImportModule = {
 
                 const exactScoreMap = new Map();
                 const numericFallbackMap = new Map();
+                let hasOutOfTenScale = false;
 
                 for (let i = 1; i < rows.length; i++) {
                     const row = rows[i];
@@ -62,6 +63,7 @@ export const scoreImportModule = {
                     const rawScore = parseFloat(rawScoreStr);
 
                     if (!isNaN(rawScore)) {
+                        if (rawScore > 10 || rawScore < 0) hasOutOfTenScale = true;
                         exactScoreMap.set(normMssv, rawScore);
                         if (/^\d+$/.test(normMssv)) {
                             const strippedZeros = normMssv.replace(/^0+/, '') || '0';
@@ -127,25 +129,22 @@ export const scoreImportModule = {
 
                 section.lastImportInfo = `Đã nạp ${matchedCount}/${app.students.length} SV (${file.name})`;
 
-                app.logs.unshift({
-                    time: new Date().toLocaleTimeString('vi-VN'),
-                    text: `Nạp điểm [${section.title || 'Phần ' + (sectionIdx + 1)}]: khớp ${matchedCount}/${app.students.length} SV (thang ${maxSecScore}đ).`
-                });
-
-                app.saveToLocalStorage();
+                const logMsg = `Nạp điểm Excel [${section.title || 'Phần ' + (sectionIdx + 1)}] từ "${file.name}": khớp ${matchedCount}/${app.students.length} SV (thang ${maxSecScore}đ).`;
+                if (app.recordAuditLog) {
+                    app.recordAuditLog(logMsg);
+                } else {
+                    app.logs.unshift({ time: new Date().toLocaleTimeString('vi-VN'), text: logMsg });
+                    app.saveToLocalStorage();
+                }
 
                 if (matchedCount === 0) {
                     app.triggerToast('Không có Mã Sinh Viên nào khớp với danh sách phòng thi!', 'warning');
+                } else if (hasOutOfTenScale) {
+                    app.triggerToast(`Đã nạp điểm ${matchedCount}/${app.students.length} SV (Lưu ý: file có giá trị ngoài thang 10 đã được tự động giới hạn).`, 'warning');
                 } else if (absentWithScoreCount > 0) {
-                    app.triggerToast(
-                        `Đã cập nhật điểm cho ${matchedCount}/${app.students.length} SV (Lưu ý: có ${absentWithScoreCount} SV đang đánh dấu VẮNG nhưng có điểm!).`,
-                        'warning'
-                    );
+                    app.triggerToast(`Đã cập nhật điểm cho ${matchedCount}/${app.students.length} SV (Lưu ý: có ${absentWithScoreCount} SV đang đánh dấu VẮNG nhưng có điểm!).`, 'warning');
                 } else {
-                    app.triggerToast(
-                        `Đã cập nhật điểm "${section.title || 'Phần ' + (sectionIdx + 1)}" cho ${matchedCount}/${app.students.length} thí sinh!`,
-                        'success'
-                    );
+                    app.triggerToast(`Đã cập nhật điểm "${section.title || 'Phần ' + (sectionIdx + 1)}" cho ${matchedCount}/${app.students.length} thí sinh!`, 'success');
                 }
             } catch (err) {
                 console.error('Lỗi đọc file bảng điểm:', err);
