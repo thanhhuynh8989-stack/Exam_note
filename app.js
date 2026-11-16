@@ -107,6 +107,13 @@ document.addEventListener('alpine:init', () => {
             if (!this.isZaloBrowser) {
                 this.initSyncModule();
             }
+
+            if (!this.config.examDateTimeISO && this.config.time) {
+                this.config.examDateTimeISO = this.parseVietnameseExamTimeToISO(this.config.time);
+            }
+            if (this.config.examDateTimeISO) {
+                this.config.time = this.formatVietnameseExamTime(this.config.examDateTimeISO);
+            }
         },
 
         copyCurrentUrl() {
