@@ -392,7 +392,7 @@
                     <div class="text-xs font-bold text-slate-800">
                         <i class="fa-solid fa-floppy-disk text-blue-600 mr-1.5"></i>
                         Suất hiện tại: <span class="text-blue-700" x-text="`${config.subjectCode || ''} ${config.subClass || ''}`.trim() || 'Chưa đặt lớp'"></span>
-                        <span class="text-slate-500 font-normal" x-text="`(${config.examTime || 'Chưa đặt giờ'} • ${students.length} SV)`"></span>
+                        <span class="text-slate-500 font-normal" x-text="`(${config.time || 'Chưa đặt giờ'} • ${students.length} SV)`"></span>
                     </div>
                 </div>
 
@@ -905,7 +905,7 @@
                             <div class="flex justify-between py-1 border-b border-slate-50"><dt class="text-slate-500">Phòng Thi:</dt><dd class="font-medium text-slate-700" x-text="config.roomName"></dd></div>
                             <div class="flex justify-between items-start gap-2 py-1 border-b border-slate-50">
                                 <dt class="text-slate-500 shrink-0">Giờ Thi:</dt>
-                                <dd class="font-bold text-amber-600 text-right" x-text="config.examTime || '.... giờ ..... phút, ngày ..../....../..........'"></dd>
+                                <dd class="font-bold text-amber-600 text-right" x-text="config.time || '.... giờ ..... phút, ngày ..../....../..........'"></dd>
                             </div>
                             <div class="flex justify-between py-1"><dt class="text-slate-500">Thang Điểm:</dt><dd class="font-semibold text-blue-600" x-text="getTotalPoints() + ' điểm'"></dd></div>
                         </dl>
