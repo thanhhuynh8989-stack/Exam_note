@@ -149,7 +149,7 @@ document.addEventListener('alpine:init', () => {
                     this.syncState.pinSecondsLeft = info.pinSecondsLeft || 60;
                     this.syncState.peerCount = info.peerCount || 0;
                     this.syncState.authError = info.authError || '';
-        
+
                     if (info.status === 'connected' && info.role === 'host' && info.joinUrl) {
                         this.$nextTick(() => this.renderQrCode(info.joinUrl));
                     }
@@ -157,15 +157,20 @@ document.addEventListener('alpine:init', () => {
                 onPinTick: (tick) => {
                     this.syncState.dynamicPin = tick.pin;
                     this.syncState.pinSecondsLeft = tick.secondsLeft;
-                    // Khi sang chu kỳ 60 giây mới, tự động cập nhật lại mã QR trên Host
-                    if (tick.slotChanged && this.syncState.role === 'host' && tick.joinUrl) {
-                        this.$nextTick(() => this.renderQrCode(tick.joinUrl));
-                    }
                 },
                 onToast: (msg, type) => this.triggerToast(msg, type)
             });
-        
-            this._syncManager.checkAutoJoinFromUrl();
+
+            // Nếu mở trang từ quét QR bằng camera gốc của điện thoại (?room=THI-XXXX)
+            const roomFromUrl = this._syncManager.checkAutoJoinFromUrl();
+            if (roomFromUrl) {
+                this.syncState.inputCode = roomFromUrl;
+                this.syncState.inputPin = '';
+                this.syncState.showModal = true;
+                this.$nextTick(() => {
+                    this.$refs.guestPinInput?.focus();
+                });
+            }
         },
 
         renderQrCode(url) {
@@ -188,37 +193,56 @@ document.addEventListener('alpine:init', () => {
             this.syncState.showPassword = true;
         },
 
-        startLiveSyncHost() {
+       startLiveSyncHost() {
             if (!this._syncManager) return;
             this._syncManager.startHost(null, false);
         },
-        
+
         joinLiveSyncRoom() {
             if (!this._syncManager) return;
             this.syncState.authError = '';
             this._syncManager.joinRoom(this.syncState.inputCode, this.syncState.inputPin, false);
         },
-        
+
         async startQrScanner() {
             if (!this._syncManager) return;
             this.syncState.authError = '';
             this.syncState.isScanningQr = true;
             await this.$nextTick();
-        
-            const res = await this._syncManager.startQrScanner('p2p-qr-reader', (parsed) => {
-                this.syncState.inputCode = parsed.roomCode;
-                this.syncState.inputPin = parsed.pin;
+
+            const res = await this._syncManager.startQrScanner('p2p-qr-reader', (roomCode) => {
+                this.syncState.inputCode = roomCode;
+                this.syncState.inputPin = '';
                 this.syncState.isScanningQr = false;
+                this.triggerToast(`Đã nhận diện phòng ${roomCode}. Vui lòng nhập mã PIN 4 số!`, 'info');
+                this.$nextTick(() => {
+                    this.$refs.guestPinInput?.focus();
+                });
             });
-        
+
             if (!res.ok) {
                 this.syncState.isScanningQr = false;
-                if (res.reason === 'INSECURE_CONTEXT') {
-                    this.syncState.authError = 'Trình duyệt chặn mở Camera trực tiếp do trang chưa dùng HTTPS. Hãy bấm nút "Chụp Ảnh Mã QR" bên cạnh!';
-                } else {
-                    this.syncState.authError = 'Không mở được luồng Camera trực tiếp. Hãy dùng nút "Chụp Ảnh Mã QR" bên cạnh.';
-                }
+                const msg = res.reason === 'INSECURE_CONTEXT'
+                    ? 'Trình duyệt chặn mở Camera trực tiếp do trang chưa dùng HTTPS. Hãy bấm nút "Chụp Ảnh Mã QR" bên cạnh!'
+                    : 'Không mở được luồng Camera trực tiếp. Hãy dùng nút "Chụp Ảnh Mã QR" bên cạnh.';
+                this.triggerToast(msg, 'warning');
             }
+        },
+
+        async handleQrImageCapture(event) {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (!file || !this._syncManager) return;
+            this.syncState.authError = '';
+
+            await this._syncManager.scanQrFromImageFile(file, (roomCode) => {
+                this.syncState.inputCode = roomCode;
+                this.syncState.inputPin = '';
+                this.triggerToast(`Đã nhận diện phòng ${roomCode}. Vui lòng nhập mã PIN 4 số!`, 'info');
+                this.$nextTick(() => {
+                    this.$refs.guestPinInput?.focus();
+                });
+            });
         },
 
         async stopQrScanner() {
