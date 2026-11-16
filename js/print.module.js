@@ -14,6 +14,12 @@ export const printModule = {
         const cfg = app.config || {};
         const students = app.students || [];
         const khoiLop = `${cfg.subjectCode || ''} ${cfg.subClass || ''}`.trim();
+        const examTimeDisplay = (cfg.time && cfg.time.trim())
+            || (cfg.examDateTimeISO && typeof app.formatVietnameseExamTime === 'function'
+                ? app.formatVietnameseExamTime(cfg.examDateTimeISO)
+                : '')
+            || (cfg.examTime && cfg.examTime.trim())
+            || '';
 
         let studentRowsHTML = '';
         if (students.length === 0) {
@@ -231,7 +237,7 @@ export const printModule = {
                         </tr>
                         <tr>
                             <td colspan="3" style="padding-top: 4px; text-align: left; white-space: normal;">
-                                <i>Thời gian:</i> &nbsp;&nbsp; <b>${cfg.examTime || ''}</b> &nbsp;&nbsp;&nbsp;&nbsp;
+                                <i>Thời gian:</i> &nbsp;&nbsp; <b>${examTimeDisplay}</b> &nbsp;&nbsp;&nbsp;&nbsp;
                                 - <i>Phòng:</i> &nbsp;&nbsp; <b>${cfg.roomName || ''}</b> &nbsp;&nbsp;&nbsp;&nbsp;
                                 - <i>Cơ sở:</i> &nbsp;&nbsp; <b>${cfg.facility || ''}</b>
                             </td>
@@ -251,12 +257,12 @@ export const printModule = {
                                 <th rowspan="2" style="width: 30px;">SỐ TỜ</th>
                                 <th rowspan="2" style="width: 55px;">KÝ TÊN</th>
                                 <th colspan="4">ĐIỂM THI KTHP</th>
-                                <th rowspan="2" style="width: 55px;">GHI CHÚ</th>
+                                <th rowspan="2" style="width: 60px;">GHI CHÚ</th>
                             </tr>
                             <tr>
-                                <th style="width: 32px; font-size: 7.5pt;">Đồ án Cá nhân</th>
-                                <th style="width: 32px; font-size: 7.5pt;">Đồ án nhóm</th>
-                                <th style="width: 38px; font-size: 7.5pt;">Kiểm Tra Cuối Kỳ</th>
+                                <th style="width: 32px; font-size: 6.0pt;">Đồ án Cá nhân</th>
+                                <th style="width: 32px; font-size: 5.5pt;">Đồ án nhóm</th>
+                                <th style="width: 38px; font-size: 6.0pt;">Kiểm Tra Cuối Kỳ</th>
                                 <th style="width: 34px; font-size: 7.5pt;">CHỮ</th>
                             </tr>
                         </thead>
