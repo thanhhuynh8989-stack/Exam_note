@@ -165,7 +165,7 @@
                             <span class="text-[10px] font-bold px-2 py-0.5 bg-slate-200 text-slate-700 rounded-full">GUEST</span>
                         </div>
 
-                        <!-- Cụm 2 nút Quét QR: Quét trực tiếp + Chụp ảnh Camera điện thoại -->
+                        <!-- Cụm 2 nút Quét QR lấy Mã phòng -->
                         <div x-show="!syncState.isScanningQr" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <button @click="startQrScanner()" 
                                     type="button"
@@ -191,34 +191,58 @@
                         </div>
                         <div id="p2p-qr-file-temp" class="hidden"></div>
 
-                        <div class="text-[11px] text-slate-500 text-center font-medium">— Hoặc nhập Mã phòng &amp; Mã PIN đang hiện trên máy chính —</div>
-
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Mã Phòng</label>
-                                <input type="text" x-model="syncState.inputCode" @keydown.enter="joinLiveSyncRoom()" 
-                                       placeholder="VD: THI-4829" 
-                                       class="w-full text-xs font-mono font-bold uppercase p-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Mã PIN (4 số)</label>
-                                <input type="text" inputmode="numeric" maxlength="4" x-model="syncState.inputPin" @keydown.enter="joinLiveSyncRoom()" 
-                                       placeholder="VD: 8492" 
-                                       class="w-full text-xs font-mono font-bold tracking-widest p-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
+                        <!-- Bước 1: Trường Mã Phòng Thi (Luôn hiển thị) -->
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Bước 1: Mã Phòng Thi</label>
+                            <div class="relative">
+                                <input type="text" x-model="syncState.inputCode" 
+                                       @input="syncState.authError = ''"
+                                       placeholder="Quét QR hoặc nhập mã phòng (VD: THI-4829)" 
+                                       class="w-full text-xs font-mono font-bold uppercase p-2.5 pr-8 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
+                                <button x-show="syncState.inputCode" 
+                                        type="button"
+                                        @click="syncState.inputCode = ''; syncState.inputPin = ''; syncState.authError = ''"
+                                        title="Xóa mã phòng"
+                                        class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 text-xs">
+                                    <i class="fa-solid fa-circle-xmark"></i>
+                                </button>
                             </div>
                         </div>
 
-                        <div x-show="syncState.authError" class="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-[11px] font-bold text-rose-600 flex items-start space-x-1.5">
-                            <i class="fa-solid fa-circle-exclamation shrink-0 mt-0.5"></i>
-                            <span x-text="syncState.authError"></span>
-                        </div>
+                        <!-- Bước 2: Hộp thoại điền Mã PIN (CHỈ XUẤT HIỆN SAU KHI MÃ PHÒNG ĐƯỢC ĐIỀN) -->
+                        <div x-show="syncState.inputCode && syncState.inputCode.trim().length > 0" 
+                             x-transition:enter="transition ease-out duration-200"
+                             x-transition:enter-start="opacity-0 -translate-y-1"
+                             x-transition:enter-end="opacity-100 translate-y-0"
+                             class="p-3 bg-amber-50/90 border border-amber-300 rounded-xl space-y-2.5">
+                            
+                            <div class="flex items-center justify-between">
+                                <label class="text-[11px] font-extrabold text-amber-900 flex items-center space-x-1.5">
+                                    <i class="fa-solid fa-key text-amber-600"></i>
+                                    <span>Bước 2: Nhập Mã PIN 4 Số Của Phòng</span>
+                                </label>
+                            </div>
 
-                        <button @click="joinLiveSyncRoom()" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center space-x-1.5">
-                            <i class="fa-solid fa-right-to-bracket"></i>
-                            <span>Kết Nối Phòng Thi</span>
-                        </button>
+                            <input type="text" 
+                                   x-ref="guestPinInput"
+                                   inputmode="numeric" 
+                                   maxlength="4" 
+                                   x-model="syncState.inputPin" 
+                                   @keydown.enter="joinLiveSyncRoom()" 
+                                   placeholder="Nhập 4 số đang hiện trên Thiết Bị Chính..." 
+                                   class="w-full text-center text-base font-mono font-black tracking-[0.35em] p-2.5 bg-white border border-amber-300 rounded-xl focus:ring-2 focus:ring-amber-500">
+
+                            <div x-show="syncState.authError" class="p-2 bg-rose-50 border border-rose-200 rounded-lg text-[11px] font-bold text-rose-600 flex items-start space-x-1.5">
+                                <i class="fa-solid fa-circle-exclamation shrink-0 mt-0.5"></i>
+                                <span x-text="syncState.authError"></span>
+                            </div>
+
+                            <button @click="joinLiveSyncRoom()" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-1.5">
+                                <i class="fa-solid fa-right-to-bracket"></i>
+                                <span>Xác Thực PIN &amp; Kết Nối</span>
+                            </button>
+                        </div>
                     </div>
-                </div>
             </template>
 
             <!-- TRẠNG THÁI ĐANG KẾT NỐI -->
