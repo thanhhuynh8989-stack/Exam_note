@@ -99,8 +99,7 @@ document.addEventListener('alpine:init', () => {
             this.loadFromLocalStorage();
             this._lastSavedStudents = JSON.parse(JSON.stringify(this.students || []));
             this.sessionState.savedSessions = sessionModule.loadAllSessions();
-            this.checkUrlSyncParams();
-
+            
             if (!this.timer.timeLeft || this.timer.timeLeft <= 0) {
                 this.timer.timeLeft = (this.config.durationMinutes || 45) * 60;
             }
@@ -159,6 +158,20 @@ document.addEventListener('alpine:init', () => {
             });
 
             this._syncManager.checkAutoJoinFromUrl();
+        },
+
+        renderQrCode(url) {
+            const box = document.getElementById('p2p-qrcode-box');
+            if (!box || !window.QRCode) return;
+            box.innerHTML = '';
+            new window.QRCode(box, {
+                text: url,
+                width: 168,
+                height: 168,
+                colorDark: '#0f172a',
+                colorLight: '#ffffff',
+                correctLevel: window.QRCode.CorrectLevel.M
+            });
         },
 
         // Các hàm điều khiển giao diện Đồng bộ (nằm ngang hàng với initSyncModule)
