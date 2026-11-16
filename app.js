@@ -30,12 +30,12 @@ document.addEventListener('alpine:init', () => {
             status: 'disconnected', // 'disconnected' | 'connecting' | 'connected' | 'reconnecting'
             role: null,             // 'host' | 'guest' | null
             roomCode: '',
-            hostPassword: '',       // Mật khẩu / mã PIN ghép đôi do Host cài đặt
-            showPassword: false,    // Bật/tắt hiển thị mật khẩu trên giao diện
-            inputCode: '',          // Mã phòng thiết bị phụ nhập vào
-            inputPassword: '',      // Mật khẩu / mã PIN thiết bị phụ nhập vào
-            authError: '',          // Thông báo lỗi khi nhập sai mật khẩu
-            isScanningQr: false,    // Trạng thái bật/tắt khung Camera quét mã QR
+            dynamicPin: '',         // Mã PIN 4 số tự động đổi mỗi 60 giây
+            pinSecondsLeft: 60,     // Số giây còn lại trước khi đổi PIN mới
+            inputCode: '',          // Mã phòng thiết bị phụ nhập
+            inputPin: '',           // Mã PIN 4 số thiết bị phụ nhập
+            authError: '',
+            isScanningQr: false,
             peerCount: 0
         },
         _syncManager: null,
@@ -145,18 +145,26 @@ document.addEventListener('alpine:init', () => {
                     this.syncState.status = info.status;
                     this.syncState.role = info.role;
                     this.syncState.roomCode = info.roomCode || '';
+                    this.syncState.dynamicPin = info.dynamicPin || '';
+                    this.syncState.pinSecondsLeft = info.pinSecondsLeft || 60;
                     this.syncState.peerCount = info.peerCount || 0;
                     this.syncState.authError = info.authError || '';
-                    if (info.password !== undefined && info.role === 'host') {
-                        this.syncState.hostPassword = info.password;
-                    }
+        
                     if (info.status === 'connected' && info.role === 'host' && info.joinUrl) {
                         this.$nextTick(() => this.renderQrCode(info.joinUrl));
                     }
                 },
+                onPinTick: (tick) => {
+                    this.syncState.dynamicPin = tick.pin;
+                    this.syncState.pinSecondsLeft = tick.secondsLeft;
+                    // Khi sang chu kỳ 60 giây mới, tự động cập nhật lại mã QR trên Host
+                    if (tick.slotChanged && this.syncState.role === 'host' && tick.joinUrl) {
+                        this.$nextTick(() => this.renderQrCode(tick.joinUrl));
+                    }
+                },
                 onToast: (msg, type) => this.triggerToast(msg, type)
             });
-
+        
             this._syncManager.checkAutoJoinFromUrl();
         },
 
@@ -182,27 +190,35 @@ document.addEventListener('alpine:init', () => {
 
         startLiveSyncHost() {
             if (!this._syncManager) return;
-            this._syncManager.startHost(null, this.syncState.hostPassword, false);
+            this._syncManager.startHost(null, false);
         },
-
+        
         joinLiveSyncRoom() {
             if (!this._syncManager) return;
             this.syncState.authError = '';
-            this._syncManager.joinRoom(this.syncState.inputCode, this.syncState.inputPassword, false);
+            this._syncManager.joinRoom(this.syncState.inputCode, this.syncState.inputPin, false);
         },
-
+        
         async startQrScanner() {
             if (!this._syncManager) return;
             this.syncState.authError = '';
             this.syncState.isScanningQr = true;
             await this.$nextTick();
-
-            const ok = await this._syncManager.startQrScanner('p2p-qr-reader', (parsed) => {
+        
+            const res = await this._syncManager.startQrScanner('p2p-qr-reader', (parsed) => {
                 this.syncState.inputCode = parsed.roomCode;
-                this.syncState.inputPassword = parsed.password;
+                this.syncState.inputPin = parsed.pin;
                 this.syncState.isScanningQr = false;
             });
-            if (!ok) this.syncState.isScanningQr = false;
+        
+            if (!res.ok) {
+                this.syncState.isScanningQr = false;
+                if (res.reason === 'INSECURE_CONTEXT') {
+                    this.syncState.authError = 'Trình duyệt chặn mở Camera trực tiếp do trang chưa dùng HTTPS. Hãy bấm nút "Chụp Ảnh Mã QR" bên cạnh!';
+                } else {
+                    this.syncState.authError = 'Không mở được luồng Camera trực tiếp. Hãy dùng nút "Chụp Ảnh Mã QR" bên cạnh.';
+                }
+            }
         },
 
         async stopQrScanner() {
@@ -211,12 +227,19 @@ document.addEventListener('alpine:init', () => {
             }
             this.syncState.isScanningQr = false;
         },
-
+        
         async closeSyncModal() {
             await this.stopQrScanner();
             this.syncState.showModal = false;
         },
-
+        
+        copySyncCode() {
+            if (!this.syncState.roomCode) return;
+            const text = `Mã phòng: ${this.syncState.roomCode} | PIN: ${this.syncState.dynamicPin}`;
+            navigator.clipboard?.writeText(text);
+            this.triggerToast('Đã sao chép Mã phòng & PIN hiện tại!', 'success');
+        },
+        
         disconnectLiveSync() {
             this.syncState.isScanningQr = false;
             if (this._syncManager) {
@@ -305,14 +328,7 @@ document.addEventListener('alpine:init', () => {
         startLiveSyncHost() { this._syncManager?.startHost(); },
         joinLiveSyncRoom() { this._syncManager?.joinRoom(this.syncState.inputCode); },
         disconnectLiveSync() { this._syncManager?.disconnect(true); },
-        copySyncCode() {
-            if (!this.syncState.roomCode) return;
-            const text = this.syncState.hostPassword
-                ? `Mã phòng: ${this.syncState.roomCode} | Mật khẩu: ${this.syncState.hostPassword}`
-                : this.syncState.roomCode;
-            navigator.clipboard?.writeText(text);
-            this.triggerToast('Đã sao chép thông tin phòng thi!', 'success');
-        },
+
         broadcastSyncState() {
             if (!this._isApplyingRemote && this._syncManager) {
                 this._syncManager.broadcast(this._syncManager.getAppState());
