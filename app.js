@@ -26,18 +26,18 @@ document.addEventListener('alpine:init', () => {
 
         // Trạng thái cổng Đồng bộ trực tiếp P2P
         syncState: {
-            showModal: false,
-            status: 'disconnected',
-            role: null,
-            roomCode: '',
-            dynamicPin: '',
-            pinSecondsLeft: 60,
-            inputCode: '',
-            inputPin: '',
-            authError: '',
-            isScanningQr: false,
-            peerCount: 0
-        },
+             showModal: false,
+             status: 'disconnected', // 'disconnected' | 'connecting' | 'waiting_approval' | 'connected' | 'reconnecting'
+             role: null,             // 'host' | 'guest' | null
+             roomCode: '',
+             inputCode: '',
+             deviceName: '',         // Tên thiết bị hiển thị cho Host duyệt
+             authError: '',
+             isScanningQr: false,
+             pendingRequests: [],    // Danh sách thiết bị đang chờ Host duyệt
+             guestList: [],          // Danh sách thiết bị Guest đã được cấp quyền
+             peerCount: 0
+         },
         _syncManager: null,
         _isApplyingRemote: false,
         _lastSavedStudents: [],
@@ -115,63 +115,61 @@ document.addEventListener('alpine:init', () => {
 
         // Khởi tạo module đồng bộ P2P (WebRTC / PeerJS) có Auto-Reconnect, Smart Merge & Xác thực PIN/QR
         initSyncModule() {
-            this._syncManager = new P2PSyncManager({
-                prefix: 'SGS-EXAM-',
-                getAppState: () => ({
-                    config: JSON.parse(JSON.stringify(this.config)),
-                    timer: {
-                        timeLeft: this.timer.timeLeft,
-                        isRunning: this.timer.isRunning
-                    },
-                    students: JSON.parse(JSON.stringify(this.students)),
-                    picker: {
-                        rawExamList: this.picker.rawExamList,
-                        currentDisplay: this.picker.currentDisplay,
-                        allowDuplicate: this.picker.allowDuplicate
-                    },
-                    logs: JSON.parse(JSON.stringify(this.logs))
-                }),
-                onStateReceived: (remote, meta = {}) => {
-                    this._isApplyingRemote = true;
-                    try {
-                        this.mergeRemoteState(remote, meta);
-                        storageModule.saveToLocalStorage(this);
-                        this._lastSavedStudents = JSON.parse(JSON.stringify(this.students));
-                    } finally {
-                        this._isApplyingRemote = false;
-                    }
-                },
-                onStatusChange: (info) => {
-                    this.syncState.status = info.status;
-                    this.syncState.role = info.role;
-                    this.syncState.roomCode = info.roomCode || '';
-                    this.syncState.dynamicPin = info.dynamicPin || '';
-                    this.syncState.pinSecondsLeft = info.pinSecondsLeft || 60;
-                    this.syncState.peerCount = info.peerCount || 0;
-                    this.syncState.authError = info.authError || '';
-
-                    if (info.status === 'connected' && info.role === 'host' && info.joinUrl) {
-                        this.$nextTick(() => this.renderQrCode(info.joinUrl));
-                    }
-                },
-                onPinTick: (tick) => {
-                    this.syncState.dynamicPin = tick.pin;
-                    this.syncState.pinSecondsLeft = tick.secondsLeft;
-                },
-                onToast: (msg, type) => this.triggerToast(msg, type)
-            });
-
-            // Nếu mở trang từ quét QR bằng camera gốc của điện thoại (?room=THI-XXXX)
-            const roomFromUrl = this._syncManager.checkAutoJoinFromUrl();
-            if (roomFromUrl) {
-                this.syncState.inputCode = roomFromUrl;
-                this.syncState.inputPin = '';
-                this.syncState.showModal = true;
-                this.$nextTick(() => {
-                    this.$refs.guestPinInput?.focus();
-                });
-            }
-        },
+             this._syncManager = new P2PSyncManager({
+                 prefix: 'SGS-EXAM-',
+                 getAppState: () => ({
+                     config: JSON.parse(JSON.stringify(this.config)),
+                     timer: {
+                         timeLeft: this.timer.timeLeft,
+                         isRunning: this.timer.isRunning
+                     },
+                     students: JSON.parse(JSON.stringify(this.students)),
+                     picker: {
+                         rawExamList: this.picker.rawExamList,
+                         currentDisplay: this.picker.currentDisplay,
+                         allowDuplicate: this.picker.allowDuplicate
+                     },
+                     logs: JSON.parse(JSON.stringify(this.logs))
+                 }),
+                 onStateReceived: (remote, meta = {}) => {
+                     this._isApplyingRemote = true;
+                     try {
+                         this.mergeRemoteState(remote, meta);
+                         storageModule.saveToLocalStorage(this);
+                         this._lastSavedStudents = JSON.parse(JSON.stringify(this.students));
+                     } finally {
+                         this._isApplyingRemote = false;
+                     }
+                 },
+                 onStatusChange: (info) => {
+                     this.syncState.status = info.status;
+                     this.syncState.role = info.role;
+                     this.syncState.roomCode = info.roomCode || '';
+                     this.syncState.peerCount = info.peerCount || 0;
+                     this.syncState.authError = info.authError || '';
+                     this.syncState.pendingRequests = info.pendingRequests || [];
+                     this.syncState.guestList = info.guestList || [];
+    
+                     // Tự động mở hộp thoại trên Host ngay khi có thiết bị mới gửi yêu cầu xin vào
+                     if (info.hasNewRequest && info.role === 'host') {
+                         this.syncState.showModal = true;
+                     }
+    
+                     if (info.status === 'connected' && info.role === 'host' && info.joinUrl) {
+                         this.$nextTick(() => this.renderQrCode(info.joinUrl));
+                     }
+                 },
+                 onToast: (msg, type) => this.triggerToast(msg, type)
+             });
+    
+             this.syncState.deviceName = this._syncManager.defaultDeviceName || '';
+    
+             const roomFromUrl = this._syncManager.checkAutoJoinFromUrl();
+             if (roomFromUrl) {
+                 this.syncState.inputCode = roomFromUrl;
+                 this.syncState.showModal = true;
+             }
+         },
 
         renderQrCode(url) {
             const box = document.getElementById('p2p-qrcode-box');
@@ -188,90 +186,82 @@ document.addEventListener('alpine:init', () => {
         },
 
         // Các hàm điều khiển giao diện Đồng bộ (nằm ngang hàng với initSyncModule)
-        generateRandomSyncPin() {
-            this.syncState.hostPassword = Math.floor(1000 + Math.random() * 9000).toString();
-            this.syncState.showPassword = true;
-        },
-
-       startLiveSyncHost() {
-            if (!this._syncManager) return;
-            this._syncManager.startHost(null, false);
-        },
-
-        joinLiveSyncRoom() {
-            if (!this._syncManager) return;
-            this.syncState.authError = '';
-            const code = (this.syncState.inputCode || '').trim().toUpperCase();
-            const pin = String(this.syncState.inputPin || '').replace(/\s+/g, '');
-            this._syncManager.joinRoom(code, pin, false);
-        },
-
-        async startQrScanner() {
-            if (!this._syncManager) return;
-            this.syncState.authError = '';
-            this.syncState.isScanningQr = true;
-            await this.$nextTick();
-
-            const res = await this._syncManager.startQrScanner('p2p-qr-reader', (roomCode) => {
-                this.syncState.inputCode = roomCode;
-                this.syncState.inputPin = '';
-                this.syncState.isScanningQr = false;
-                this.triggerToast(`Đã nhận diện phòng ${roomCode}. Vui lòng nhập mã PIN 4 số!`, 'info');
-                this.$nextTick(() => {
-                    this.$refs.guestPinInput?.focus();
-                });
-            });
-
-            if (!res.ok) {
-                this.syncState.isScanningQr = false;
-                const msg = res.reason === 'INSECURE_CONTEXT'
-                    ? 'Trình duyệt chặn mở Camera trực tiếp do trang chưa dùng HTTPS. Hãy bấm nút "Chụp Ảnh Mã QR" bên cạnh!'
-                    : 'Không mở được luồng Camera trực tiếp. Hãy dùng nút "Chụp Ảnh Mã QR" bên cạnh.';
-                this.triggerToast(msg, 'warning');
-            }
-        },
-
-        async handleQrImageCapture(event) {
-            const file = event.target.files?.[0];
-            event.target.value = '';
-            if (!file || !this._syncManager) return;
-            this.syncState.authError = '';
-
-            await this._syncManager.scanQrFromImageFile(file, (roomCode) => {
-                this.syncState.inputCode = roomCode;
-                this.syncState.inputPin = '';
-                this.triggerToast(`Đã nhận diện phòng ${roomCode}. Vui lòng nhập mã PIN 4 số!`, 'info');
-                this.$nextTick(() => {
-                    this.$refs.guestPinInput?.focus();
-                });
-            });
-        },
-
-        async stopQrScanner() {
-            if (this._syncManager) {
-                await this._syncManager.stopQrScanner();
-            }
-            this.syncState.isScanningQr = false;
-        },
-        
-        async closeSyncModal() {
-            await this.stopQrScanner();
-            this.syncState.showModal = false;
-        },
-        
-        copySyncCode() {
-            if (!this.syncState.roomCode) return;
-            const text = `Mã phòng: ${this.syncState.roomCode} | PIN: ${this.syncState.dynamicPin}`;
-            navigator.clipboard?.writeText(text);
-            this.triggerToast('Đã sao chép Mã phòng & PIN hiện tại!', 'success');
-        },
-        
-        disconnectLiveSync() {
-            this.syncState.isScanningQr = false;
-            if (this._syncManager) {
-                this._syncManager.disconnect(true);
-            }
-        },
+        startLiveSyncHost() {
+             if (!this._syncManager) return;
+             this._syncManager.startHost(null, false);
+         },
+    
+         joinLiveSyncRoom() {
+             if (!this._syncManager) return;
+             this.syncState.authError = '';
+             this._syncManager.joinRoom(this.syncState.inputCode, this.syncState.deviceName, false);
+         },
+    
+         approveSyncGuest(deviceId) {
+             if (this._syncManager) this._syncManager.approveGuest(deviceId);
+         },
+    
+         rejectSyncGuest(deviceId) {
+             if (this._syncManager) this._syncManager.rejectGuest(deviceId);
+         },
+    
+         revokeSyncGuest(deviceId) {
+             if (this._syncManager) this._syncManager.revokeGuest(deviceId);
+         },
+    
+         async startQrScanner() {
+             if (!this._syncManager) return;
+             this.syncState.authError = '';
+             this.syncState.isScanningQr = true;
+             await this.$nextTick();
+    
+             const res = await this._syncManager.startQrScanner('p2p-qr-reader', (roomCode) => {
+                 this.syncState.inputCode = roomCode;
+                 this.syncState.isScanningQr = false;
+                 this.joinLiveSyncRoom();
+             });
+    
+             if (!res.ok) {
+                 this.syncState.isScanningQr = false;
+                 const msg = res.reason === 'INSECURE_CONTEXT'
+                     ? 'Trình duyệt chặn mở Camera trực tiếp do trang chưa dùng HTTPS. Hãy bấm nút "Chụp Ảnh Mã QR" bên cạnh!'
+                     : 'Không mở được luồng Camera trực tiếp. Hãy dùng nút "Chụp Ảnh Mã QR" bên cạnh.';
+                 this.triggerToast(msg, 'warning');
+             }
+         },
+    
+         async handleQrImageCapture(event) {
+             const file = event.target.files?.[0];
+             event.target.value = '';
+             if (!file || !this._syncManager) return;
+             this.syncState.authError = '';
+    
+             await this._syncManager.scanQrFromImageFile(file, (roomCode) => {
+                 this.syncState.inputCode = roomCode;
+                 this.joinLiveSyncRoom();
+             });
+         },
+    
+         async stopQrScanner() {
+             if (this._syncManager) await this._syncManager.stopQrScanner();
+             this.syncState.isScanningQr = false;
+         },
+    
+         async closeSyncModal() {
+             await this.stopQrScanner();
+             this.syncState.showModal = false;
+         },
+    
+         copySyncCode() {
+             if (!this.syncState.roomCode) return;
+             navigator.clipboard?.writeText(this.syncState.roomCode);
+             this.triggerToast(`Đã sao chép mã phòng ${this.syncState.roomCode}`, 'success');
+         },
+    
+         disconnectLiveSync() {
+             this.syncState.isScanningQr = false;
+             if (this._syncManager) this._syncManager.disconnect(true);
+         },
 
         stampStudentUpdates(prevStudents, nextStudents) {
             const now = Date.now();
