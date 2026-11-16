@@ -15,7 +15,7 @@
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* ==================== BỔ SUNG ĐỊNH DẠNG IN ẤN A4 ==================== */
+/* ==================== ĐỊNH DẠNG IN ẤN PHIẾU A4 ==================== */
 #print-area { display: none; }
 
 @media print {
