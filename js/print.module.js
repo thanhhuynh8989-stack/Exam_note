@@ -39,8 +39,8 @@ export const printModule = {
                     <tr style="height: 25px;">
                         <td style="text-align: center;">${idx + 1}</td>
                         <td style="font-family: monospace; font-weight: bold; text-align: center;">${st.mssv || ''}</td>
-                        <td style="text-align: left; padding-left: 5px;">${st.hoLot || ''}</td>
-                        <td style="text-align: left; padding-left: 5px; font-weight: bold;">${st.ten || ''}</td>
+                        <td class="col-holot" style="text-align: left; padding-left: 5px;">${st.hoLot || ''}</td>
+                        <td class="col-ten" style="text-align: left; padding-left: 5px; font-weight: bold;">${st.ten || ''}</td>
                         <td style="text-align: center; font-size: 8.5pt;">${khoiLop}</td>
                         <td style="text-align: center; font-size: 8.5pt;">${st.className || ''}</td>
                         <td style="text-align: center;"></td> <!-- SỐ TỜ -->
@@ -168,6 +168,15 @@ export const printModule = {
                         text-align: center;
                         font-weight: bold;
                     }
+                    /* Bỏ kẻ dọc ngăn cách giữa cột Họ và và cột Tên */
+                    .student-table th.col-holot,
+                    .student-table td.col-holot {
+                        border-right: none !important;
+                    }
+                    .student-table th.col-ten,
+                    .student-table td.col-ten {
+                        border-left: none !important;
+                    }
 
                     .footer-summary {
                         font-size: 9.5pt;
@@ -250,8 +259,8 @@ export const printModule = {
                             <tr>
                                 <th rowspan="2" style="width: 25px;">STT</th>
                                 <th rowspan="2" style="width: 80px;">MSV</th>
-                                <th rowspan="2" style="width: 115px;">HỌ VÀ</th>
-                                <th rowspan="2" style="width: 50px;">TÊN</th>
+                                <th rowspan="2" class="col-holot" style="width: 115px;">HỌ VÀ</th>
+                                <th rowspan="2" class="col-ten" style="width: 50px;">TÊN</th>
                                 <th rowspan="2" style="width: 70px;">LỚP MÔN HỌC</th>
                                 <th rowspan="2" style="width: 60px;">LỚP SINH HOẠT</th>
                                 <th rowspan="2" style="width: 30px;">SỐ TỜ</th>
@@ -260,9 +269,9 @@ export const printModule = {
                                 <th rowspan="2" style="width: 60px;">GHI CHÚ</th>
                             </tr>
                             <tr>
-                                <th style="width: 32px; font-size: 6.0pt;">Đồ án Cá nhân</th>
-                                <th style="width: 32px; font-size: 5.5pt;">Đồ án nhóm</th>
-                                <th style="width: 38px; font-size: 6.0pt;">Kiểm Tra Cuối Kỳ</th>
+                                <th style="width: 32px; font-size: 7.0pt;">Đồ án Cá nhân</th>
+                                <th style="width: 32px; font-size: 7.0pt;">Đồ án nhóm</th>
+                                <th style="width: 38px; font-size: 7.0pt;">Kiểm Tra Cuối Kỳ</th>
                                 <th style="width: 34px; font-size: 7.5pt;">CHỮ</th>
                             </tr>
                         </thead>
