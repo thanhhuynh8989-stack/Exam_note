@@ -30,7 +30,12 @@ document.addEventListener('alpine:init', () => {
             status: 'disconnected', // 'disconnected' | 'connecting' | 'connected' | 'reconnecting'
             role: null,             // 'host' | 'guest' | null
             roomCode: '',
-            inputCode: '',
+            hostPassword: '',       // Mật khẩu / mã PIN ghép đôi do Host cài đặt
+            showPassword: false,    // Bật/tắt hiển thị mật khẩu trên giao diện
+            inputCode: '',          // Mã phòng thiết bị phụ nhập vào
+            inputPassword: '',      // Mật khẩu / mã PIN thiết bị phụ nhập vào
+            authError: '',          // Thông báo lỗi khi nhập sai mật khẩu
+            isScanningQr: false,    // Trạng thái bật/tắt khung Camera quét mã QR
             peerCount: 0
         },
         _syncManager: null,
@@ -94,6 +99,7 @@ document.addEventListener('alpine:init', () => {
             this.loadFromLocalStorage();
             this._lastSavedStudents = JSON.parse(JSON.stringify(this.students || []));
             this.sessionState.savedSessions = sessionModule.loadAllSessions();
+            this.checkUrlSyncParams();
 
             if (!this.timer.timeLeft || this.timer.timeLeft <= 0) {
                 this.timer.timeLeft = (this.config.durationMinutes || 45) * 60;
@@ -108,7 +114,7 @@ document.addEventListener('alpine:init', () => {
             this.triggerToast('Đã sao chép đường dẫn! Hãy dán vào Chrome hoặc Safari.', 'success');
         },
 
-        // Khởi tạo module đồng bộ P2P (WebRTC / PeerJS) có Auto-Reconnect & Smart Merge
+        // Khởi tạo module đồng bộ P2P (WebRTC / PeerJS) có Auto-Reconnect, Smart Merge & Xác thực PIN/QR
         initSyncModule() {
             this._syncManager = new P2PSyncManager({
                 prefix: 'SGS-EXAM-',
@@ -141,21 +147,68 @@ document.addEventListener('alpine:init', () => {
                     this.syncState.role = info.role;
                     this.syncState.roomCode = info.roomCode || '';
                     this.syncState.peerCount = info.peerCount || 0;
-
-                    if (info.joinUrl) {
-                        this.$nextTick(() => {
-                            const qrBox = document.getElementById('p2p-qrcode-box');
-                            if (qrBox && window.QRCode) {
-                                qrBox.innerHTML = '';
-                                new window.QRCode(qrBox, { text: info.joinUrl, width: 160, height: 160 });
-                            }
-                        });
+                    this.syncState.authError = info.authError || '';
+                    if (info.password !== undefined && info.role === 'host') {
+                        this.syncState.hostPassword = info.password;
+                    }
+                    if (info.status === 'connected' && info.role === 'host' && info.joinUrl) {
+                        this.$nextTick(() => this.renderQrCode(info.joinUrl));
                     }
                 },
                 onToast: (msg, type) => this.triggerToast(msg, type)
             });
 
             this._syncManager.checkAutoJoinFromUrl();
+        },
+
+        // Các hàm điều khiển giao diện Đồng bộ (nằm ngang hàng với initSyncModule)
+        generateRandomSyncPin() {
+            this.syncState.hostPassword = Math.floor(1000 + Math.random() * 9000).toString();
+            this.syncState.showPassword = true;
+        },
+
+        startLiveSyncHost() {
+            if (!this._syncManager) return;
+            this._syncManager.startHost(null, this.syncState.hostPassword, false);
+        },
+
+        joinLiveSyncRoom() {
+            if (!this._syncManager) return;
+            this.syncState.authError = '';
+            this._syncManager.joinRoom(this.syncState.inputCode, this.syncState.inputPassword, false);
+        },
+
+        async startQrScanner() {
+            if (!this._syncManager) return;
+            this.syncState.authError = '';
+            this.syncState.isScanningQr = true;
+            await this.$nextTick();
+
+            const ok = await this._syncManager.startQrScanner('p2p-qr-reader', (parsed) => {
+                this.syncState.inputCode = parsed.roomCode;
+                this.syncState.inputPassword = parsed.password;
+                this.syncState.isScanningQr = false;
+            });
+            if (!ok) this.syncState.isScanningQr = false;
+        },
+
+        async stopQrScanner() {
+            if (this._syncManager) {
+                await this._syncManager.stopQrScanner();
+            }
+            this.syncState.isScanningQr = false;
+        },
+
+        async closeSyncModal() {
+            await this.stopQrScanner();
+            this.syncState.showModal = false;
+        },
+
+        disconnectLiveSync() {
+            this.syncState.isScanningQr = false;
+            if (this._syncManager) {
+                this._syncManager.disconnect(true);
+            }
         },
 
         stampStudentUpdates(prevStudents, nextStudents) {
@@ -241,8 +294,11 @@ document.addEventListener('alpine:init', () => {
         disconnectLiveSync() { this._syncManager?.disconnect(true); },
         copySyncCode() {
             if (!this.syncState.roomCode) return;
-            navigator.clipboard.writeText(this.syncState.roomCode);
-            this.triggerToast(`Đã sao chép mã phòng: ${this.syncState.roomCode}`, 'success');
+            const text = this.syncState.hostPassword
+                ? `Mã phòng: ${this.syncState.roomCode} | Mật khẩu: ${this.syncState.hostPassword}`
+                : this.syncState.roomCode;
+            navigator.clipboard?.writeText(text);
+            this.triggerToast('Đã sao chép thông tin phòng thi!', 'success');
         },
         broadcastSyncState() {
             if (!this._isApplyingRemote && this._syncManager) {
