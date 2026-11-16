@@ -1,13 +1,13 @@
 export const storageModule = {
     downloadStudentTemplate() {
         const templateData = [
-            { "Mã_Sinh_Viên": "2326521015", "Họ_Lót": "Trương Ngọc", "Tên": "Ánh", "Lớp": "BIO101 K3" },
-            { "Mã_Sinh_Viên": "2326521030", "Họ_Lót": "Vũ Thị", "Tên": "Hằng", "Lớp": "BIO101 K3" }
+            { "Mã_Sinh_Viên": "2326521015", "Họ_Lót": "Trương Ngọc", "Tên": "Ánh", "Lớp (nếu có)": "K29CTP" },
+            { "Mã_Sinh_Viên": "2326521030", "Họ_Lót": "Vũ Thị", "Tên": "Hằng", "Lớp (nếu có)": "K29TNM" }
         ];
         const worksheet = XLSX.utils.json_to_sheet(templateData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "DanhSachThiSinh");
-        XLSX.writeFile(workbook, "Mau_Danh_Sach_Thi_Sinh_2_Cot.xlsx");
+        XLSX.writeFile(workbook, "Mau_Danh_Sach_Thi_Sinh.xlsx");
     },
     handleStudentExcelUpload(app, event) {
         const file = event.target.files[0];
@@ -26,7 +26,7 @@ export const storageModule = {
                     const mssv = String(row["Mã_Sinh_Viên"] || row["MSSV"] || row["Mã Thí Sinh"] || row["SBD"] || "").trim();
                     const hoLot = String(row["Họ_Lót"] || row["Họ Lót"] || row["HoLot"] || "").trim();
                     const ten = String(row["Tên"] || row["Ten"] || "").trim();
-                    const className = String(row["Lớp"] || row["Class"] || "").trim();
+                    const className = String(row["Lớp (nếu có)"] || row["Class"] || "").trim();
 
                     if (mssv && ten) {
                         app.students.push({
@@ -62,7 +62,7 @@ export const storageModule = {
                 "Mã_Sinh_Viên": st.mssv,
                 "Họ_Lót": st.hoLot,
                 "Tên": st.ten,
-                "Lớp": st.className || "",
+                "Lớp (nếu có)": st.className || "",
                 "Điểm Danh": st.isPresent ? "Có mặt" : "Vắng mặt",
                 "Đề Thi": st.assignedExam || ""
             };
