@@ -1,4 +1,4 @@
-// p2p-sync.js - Đồng bộ P2P (STUN/TURN xuyên tường lửa, Log chi tiết, PIN 60s & Tự nối lại khi đã cấp quyền)
+// p2p-sync.js - Đồng bộ đa thiết bị xuyên mạng (WSS Relay cổng 443, PIN động 60s & Token tự nối lại)
 
 export function computeTimeSyncedPin(roomCode, timeSlot = Math.floor(Date.now() / 60000)) {
     const cleanRoom = String(roomCode || '').trim().toUpperCase();
@@ -12,14 +12,19 @@ export function computeTimeSyncedPin(roomCode, timeSlot = Math.floor(Date.now() 
     return String(pinNum).padStart(4, '0');
 }
 
+const WSS_BROKERS = [
+    'wss://broker.emqx.io:8084/mqtt',
+    'wss://broker.hivemq.com:8884/mqtt'
+];
+
 export class P2PSyncManager {
     constructor(options = {}) {
         this.prefix = options.prefix || 'SGS-EXAM-';
-        this.peer = null;
+        this.client = null;
+        this.brokerIndex = 0;
         this.role = null; // 'host' | 'guest' | null
         this.roomCode = null;
-        this.connections = []; // Danh sách kết nối Guest đang hoạt động & đã xác thực
-        this.hostConn = null;
+        this.activeGuests = new Map(); // deviceId -> lastSeen timestamp
         this.isAuthenticated = false;
 
         // Danh sách thiết bị đã được Host cấp quyền (lưu bền vững để rớt mạng tự nối lại không cần PIN)
@@ -31,6 +36,7 @@ export class P2PSyncManager {
         this.reconnectTimer = null;
         this.authTimeoutTimer = null;
         this.pinTickerTimer = null;
+        this.heartbeatTimer = null;
         this.reconnectAttempts = 0;
         this.html5QrCode = null;
 
@@ -49,7 +55,7 @@ export class P2PSyncManager {
             });
             if (!this.isManualDisconnect && this.roomCode && canReconnect) {
                 this.onToast('Đã có Internet trở lại. Đang khôi phục đồng bộ...', 'info');
-                this._scheduleReconnect(500);
+                this._scheduleReconnect(400);
             }
         });
 
@@ -61,62 +67,72 @@ export class P2PSyncManager {
                 this._emitStatus('reconnecting');
             }
         });
-    }
 
-    // Cấu hình máy chủ STUN + TURN (UDP/TCP 443) để kết nối được cả khi khác mạng 4G/Wi-Fi hoặc tường lửa chặn UDP
-    _getPeerOptions() {
-        return {
-            debug: 2,
-            config: {
-                iceTransportPolicy: 'all',
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' },
-                    { urls: 'stun:stun.relay.metered.ca:80' },
-                    {
-                        urls: 'turn:openrelay.metered.ca:80',
-                        username: 'openrelayproject',
-                        credential: 'openrelayproject'
-                    },
-                    {
-                        urls: 'turn:openrelay.metered.ca:443',
-                        username: 'openrelayproject',
-                        credential: 'openrelayproject'
-                    },
-                    {
-                        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-                        username: 'openrelayproject',
-                        credential: 'openrelayproject'
-                    }
-                ]
+        // Khi mở lại màn hình điện thoại sau khi tắt/chuyển app -> kiểm tra & nối lại ngay
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && !this.isManualDisconnect && this.roomCode && this.role) {
+                if (!this.client || !this.client.connected) {
+                    console.log('[P2P-NET] 📱 Màn hình hoạt động trở lại, đang kiểm tra kết nối...');
+                    this._scheduleReconnect(200);
+                }
             }
-        };
+        });
     }
 
-    async ensurePeerLibrary() {
-        if (window.Peer) return;
-        console.log('[P2P-SYS] Đang tải thư viện PeerJS...');
-        return new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
-            script.onload = () => {
-                console.log('[P2P-SYS] ✅ Đã tải xong PeerJS.');
-                resolve();
-            };
-            script.onerror = () => reject(new Error('Không thể tải thư viện PeerJS'));
-            document.head.appendChild(script);
-        });
+    async ensureRelayLibrary() {
+        if (window.mqtt) return;
+        const urls = [
+            'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js',
+            'https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js'
+        ];
+        for (const src of urls) {
+            try {
+                await new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = src;
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.head.appendChild(script);
+                });
+                if (window.mqtt) {
+                    console.log('[P2P-SYS] ✅ Đã tải xong thư viện truyền tải WSS.');
+                    return;
+                }
+            } catch (_) {
+                console.warn(`[P2P-SYS] Thử nguồn dự phòng tiếp theo sau khi lỗi tải: ${src}`);
+            }
+        }
+        throw new Error('Không thể tải thư viện kết nối mạng. Hãy kiểm tra Internet.');
     }
 
     async ensureQrScannerLibrary() {
         if (window.Html5Qrcode) return;
-        return new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
-            script.onload = resolve;
-            script.onerror = () => reject(new Error('Không thể tải thư viện quét QR'));
-            document.head.appendChild(script);
-        });
+        const urls = [
+            'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js',
+            'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js'
+        ];
+        for (const src of urls) {
+            try {
+                await new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = src;
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.head.appendChild(script);
+                });
+                if (window.Html5Qrcode) return;
+            } catch (_) {}
+        }
+        throw new Error('Không thể tải thư viện quét QR');
+    }
+
+    _topics(roomCode) {
+        const base = `sgs-exam-relay/v1/${this.prefix}${roomCode}`;
+        return {
+            inbox: `${base}/inbox`,                 // Guest -> Host
+            broadcast: `${base}/broadcast`,         // Host -> Tất cả Guest
+            client: (devId) => `${base}/client/${devId}` // Host -> Riêng 1 Guest (xác thực & sync ban đầu)
+        };
     }
 
     getCurrentPinInfo() {
@@ -152,12 +168,54 @@ export class P2PSyncManager {
         }
     }
 
+    _startHeartbeat() {
+        this._stopHeartbeat();
+        this.heartbeatTimer = setInterval(() => {
+            if (!this.client || !this.client.connected || !this.roomCode) return;
+            const topics = this._topics(this.roomCode);
+
+            if (this.role === 'host') {
+                // Dọn dẹp thiết bị phụ không còn phản hồi quá 45 giây
+                const now = Date.now();
+                let changed = false;
+                for (const [devId, lastSeen] of this.activeGuests.entries()) {
+                    if (now - lastSeen > 45000) {
+                        this.activeGuests.delete(devId);
+                        changed = true;
+                    }
+                }
+                if (changed) this._emitStatus('connected');
+            } else if (this.role === 'guest' && this.isAuthenticated && this.sessionToken) {
+                // Guest gửi nhịp tim nhẹ để Host biết thiết bị vẫn đang trực tuyến
+                this.client.publish(topics.inbox, JSON.stringify({
+                    type: 'HEARTBEAT',
+                    deviceId: this.deviceId,
+                    sessionToken: this.sessionToken,
+                    ts: Date.now()
+                }));
+            }
+        }, 12000);
+    }
+
+    _stopHeartbeat() {
+        if (this.heartbeatTimer) {
+            clearInterval(this.heartbeatTimer);
+            this.heartbeatTimer = null;
+        }
+    }
+
     // =========================================================
     // 1. THIẾT BỊ CHÍNH (HOST)
     // =========================================================
     async startHost(customCode = null, isReconnect = false) {
-        await this.ensurePeerLibrary();
-        this._cleanupPeerOnly();
+        try {
+            await this.ensureRelayLibrary();
+        } catch (err) {
+            this.onToast(err.message, 'error');
+            return;
+        }
+
+        this._cleanupClientOnly();
         this.isManualDisconnect = false;
         this.isAuthenticated = false;
 
@@ -166,164 +224,177 @@ export class P2PSyncManager {
         this.role = 'host';
         this._saveSession();
 
-        const peerId = `${this.prefix}${this.roomCode}`;
-        console.log(`[P2P-HOST] Khởi tạo Host | Mã phòng: ${this.roomCode} | PeerID: ${peerId} | Reconnect: ${isReconnect}`);
+        const brokerUrl = WSS_BROKERS[this.brokerIndex % WSS_BROKERS.length];
+        const topics = this._topics(this.roomCode);
+        const clientId = `SGS_HOST_${this.roomCode}_${this.deviceId}_${Math.random().toString(36).slice(2, 6)}`;
+
+        console.log(`[P2P-HOST] Khởi tạo Host qua WSS | Phòng: ${this.roomCode} | Broker: ${brokerUrl} | Reconnect: ${isReconnect}`);
         this._emitStatus(isReconnect ? 'reconnecting' : 'connecting');
 
-        this.peer = new window.Peer(peerId, this._getPeerOptions());
-
-        this.peer.on('open', (id) => {
-            this.reconnectAttempts = 0;
-            this.isAuthenticated = true;
-            this._clearReconnectTimer();
-            this._startPinTicker();
-            this._emitStatus('connected');
-
-            const pinInfo = this.getCurrentPinInfo();
-            console.log(`[P2P-HOST] ✅ Sẵn sàng nhận kết nối! PeerID=${id} | PIN hiện tại=${pinInfo.pin} (còn ${pinInfo.secondsLeft}s)`);
-
-            if (!isReconnect) {
-                this.onToast(`Đã mở cổng đồng bộ phòng ${this.roomCode}`, 'success');
-            } else {
-                this.onToast(`Đã khôi phục phòng đồng bộ ${this.roomCode}`, 'success');
+        let connectTimeout = setTimeout(() => {
+            if (!this.isAuthenticated && !this.isManualDisconnect) {
+                console.warn(`[P2P-HOST] ⏱️ Broker ${brokerUrl} phản hồi chậm, chuyển sang Broker dự phòng...`);
+                this.brokerIndex += 1;
+                this.startHost(this.roomCode, isReconnect);
             }
+        }, 5000);
+
+        this.client = window.mqtt.connect(brokerUrl, {
+            clientId,
+            clean: true,
+            connectTimeout: 5000,
+            reconnectPeriod: 2500,
+            keepalive: 15
         });
 
-        this.peer.on('connection', (conn) => {
-            console.log(`[P2P-HOST] 📩 Có kết nối đến từ Peer: ${conn.peer}`);
+        this.client.on('connect', () => {
+            clearTimeout(connectTimeout);
+            this.client.subscribe(topics.inbox, { qos: 1 }, (err) => {
+                if (err) {
+                    console.error('[P2P-HOST] ❌ Lỗi đăng ký kênh inbox:', err);
+                    return;
+                }
+                this.reconnectAttempts = 0;
+                this.isAuthenticated = true;
+                this._clearReconnectTimer();
+                this._startPinTicker();
+                this._startHeartbeat();
+                this._emitStatus('connected');
 
-            if (conn.peerConnection) {
-                conn.peerConnection.addEventListener('iceconnectionstatechange', () => {
-                    console.log(`[P2P-HOST] 🌐 ICE với ${conn.peer}: ${conn.peerConnection?.iceConnectionState}`);
+                const pinInfo = this.getCurrentPinInfo();
+                console.log(`[P2P-HOST] ✅ Sẵn sàng nhận kết nối đa mạng! Phòng=${this.roomCode} | PIN hiện tại=${pinInfo.pin} (còn ${pinInfo.secondsLeft}s)`);
+
+                if (!isReconnect) {
+                    this.onToast(`Đã mở cổng đồng bộ phòng ${this.roomCode}`, 'success');
+                } else {
+                    this.onToast(`Đã khôi phục phòng đồng bộ ${this.roomCode}`, 'success');
+                }
+            });
+        });
+
+        this.client.on('message', (topic, rawPayload) => {
+            if (topic !== topics.inbox) return;
+            let data = null;
+            try {
+                data = JSON.parse(rawPayload.toString());
+            } catch (_) {
+                return;
+            }
+            if (!data || typeof data !== 'object') return;
+
+            const guestDeviceId = String(data.deviceId || '').trim();
+            if (!guestDeviceId) return;
+
+            // BƯỚC 1: Xử lý yêu cầu xác thực từ Guest
+            if (data.type === 'AUTH_REQUEST') {
+                console.log('[P2P-HOST] 📩 Nhận yêu cầu AUTH_REQUEST:', data);
+                const providedPin = String(data.pin || '').trim();
+                const providedToken = String(data.sessionToken || '').trim();
+
+                const currentSlot = Math.floor(Date.now() / 60000);
+                const validPins = [
+                    computeTimeSyncedPin(this.roomCode, currentSlot),
+                    computeTimeSyncedPin(this.roomCode, currentSlot - 1),
+                    computeTimeSyncedPin(this.roomCode, currentSlot + 1)
+                ];
+
+                const savedToken = this.authorizedDevices[guestDeviceId];
+                const isTrustedReconnect = Boolean(savedToken && providedToken && savedToken === providedToken);
+                const isPinMatched = Boolean(providedPin && validPins.includes(providedPin));
+
+                console.log('[P2P-HOST] 🔍 Kết quả đối chiếu xác thực:', {
+                    guestDeviceId,
+                    providedPin: providedPin || '(trống)',
+                    validPinsHost: validPins,
+                    isPinMatched,
+                    isTrustedReconnect
                 });
+
+                if (!isTrustedReconnect && !isPinMatched) {
+                    console.warn(`[P2P-HOST] ❌ TỪ CHỐI thiết bị ${guestDeviceId}: Sai mã PIN!`);
+                    this.client.publish(topics.client(guestDeviceId), JSON.stringify({
+                        type: 'AUTH_REJECTED',
+                        reason: `Sai mã PIN (${providedPin})! PIN hiện tại trên Thiết Bị Chính là ${validPins[0]}.`
+                    }), { qos: 1 });
+                    return;
+                }
+
+                // Cấp/gia hạn token cho thiết bị này để rớt mạng tự nối lại không cần nhập lại PIN
+                const issuedToken = savedToken || `TOK-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+                this.authorizedDevices[guestDeviceId] = issuedToken;
+                this._saveAuthorizedDevices();
+
+                this.activeGuests.set(guestDeviceId, Date.now());
+                this._emitStatus('connected');
+
+                console.log(`[P2P-HOST] ✅ CHẤP NHẬN thiết bị ${guestDeviceId}. Gửi AUTH_ACCEPTED & dữ liệu phòng thi...`);
+                this.onToast(
+                    isTrustedReconnect ? 'Thiết bị giám thị vừa tự động kết nối lại!' : 'Một thiết bị giám thị đã xác thực và kết nối!',
+                    'info'
+                );
+
+                this.client.publish(topics.client(guestDeviceId), JSON.stringify({
+                    type: 'AUTH_ACCEPTED',
+                    sessionToken: issuedToken
+                }), { qos: 1 });
+
+                // Gửi ngay trạng thái hiện tại của phòng thi cho thiết bị mới vào
+                this.client.publish(topics.client(guestDeviceId), JSON.stringify({
+                    type: 'SYNC_STATE',
+                    payload: this.getAppState(),
+                    senderRole: 'host',
+                    isInitialSync: true,
+                    timestamp: Date.now()
+                }), { qos: 1 });
+                return;
             }
 
-            conn.on('open', () => {
-                console.log(`[P2P-HOST] 🔓 Kênh dữ liệu với ${conn.peer} đã mở, đang chờ gói AUTH_REQUEST...`);
-            });
+            // BƯỚC 2: Kiểm tra quyền cho mọi gói tin khác
+            const savedToken = this.authorizedDevices[guestDeviceId];
+            if (!savedToken || data.sessionToken !== savedToken) {
+                console.warn(`[P2P-HOST] ⛔ Chặn gói tin chưa xác thực từ ${guestDeviceId}`);
+                return;
+            }
 
-            conn.on('data', (data) => {
-                console.log(`[P2P-HOST] 📦 Nhận gói tin từ ${conn.peer}:`, data);
-                if (!data || typeof data !== 'object') return;
+            this.activeGuests.set(guestDeviceId, Date.now());
 
-                // BƯỚC 1: Xử lý xác thực từ Guest
-                if (data.type === 'AUTH_REQUEST') {
-                    const providedPin = String(data.pin || '').trim();
-                    const guestDeviceId = String(data.deviceId || conn.peer).trim();
-                    const providedToken = String(data.sessionToken || '').trim();
+            if (data.type === 'HEARTBEAT') {
+                this._emitStatus('connected');
+                return;
+            }
 
-                    const currentSlot = Math.floor(Date.now() / 60000);
-                    const validPins = [
-                        computeTimeSyncedPin(this.roomCode, currentSlot),
-                        computeTimeSyncedPin(this.roomCode, currentSlot - 1),
-                        computeTimeSyncedPin(this.roomCode, currentSlot + 1)
-                    ];
+            if (data.type === 'GUEST_LEAVE') {
+                this.activeGuests.delete(guestDeviceId);
+                this._emitStatus('connected');
+                return;
+            }
 
-                    const savedToken = this.authorizedDevices[guestDeviceId];
-                    const isTrustedReconnect = Boolean(savedToken && providedToken && savedToken === providedToken);
-                    const isPinMatched = Boolean(providedPin && validPins.includes(providedPin));
-
-                    console.log('[P2P-HOST] 🔍 Kết quả đối chiếu xác thực:', {
-                        guestPeer: conn.peer,
-                        guestDeviceId,
-                        providedPin: providedPin || '(trống)',
-                        validPinsHost: validPins,
-                        isPinMatched,
-                        isTrustedReconnect
-                    });
-
-                    if (!isTrustedReconnect && !isPinMatched) {
-                        console.warn(`[P2P-HOST] ❌ TỪ CHỐI kết nối từ ${conn.peer}: Sai mã PIN!`);
-                        conn.send({
-                            type: 'AUTH_REJECTED',
-                            reason: `Sai mã PIN (${providedPin})! PIN hiện tại trên máy chính là ${validPins[0]}.`
-                        });
-                        setTimeout(() => {
-                            try { conn.close(); } catch (_) {}
-                        }, 300);
-                        return;
-                    }
-
-                    // Cấp/gia hạn token cho thiết bị này để rớt mạng tự kết nối lại không cần nhập lại PIN
-                    const issuedToken = savedToken || `TOK-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
-                    this.authorizedDevices[guestDeviceId] = issuedToken;
-                    this._saveAuthorizedDevices();
-
-                    this.connections = this.connections.filter(c => c.peer !== conn.peer);
-                    this.connections.push(conn);
-                    this._emitStatus('connected');
-
-                    console.log(`[P2P-HOST] ✅ CHẤP NHẬN kết nối từ ${conn.peer} (Device: ${guestDeviceId}). Đang gửi AUTH_ACCEPTED & dữ liệu...`);
-                    this.onToast(
-                        isTrustedReconnect ? 'Thiết bị giám thị vừa tự động kết nối lại!' : 'Một thiết bị giám thị đã xác thực và kết nối!',
-                        'info'
-                    );
-
-                    conn.send({
-                        type: 'AUTH_ACCEPTED',
-                        sessionToken: issuedToken
-                    });
-
-                    conn.send({
-                        type: 'SYNC_STATE',
-                        payload: this.getAppState(),
-                        senderRole: 'host',
-                        isInitialSync: true,
-                        timestamp: Date.now()
-                    });
-                    return;
-                }
-
-                // BƯỚC 2: Chặn gói tin nếu chưa xác thực
-                const isAuthorizedPeer = this.connections.some(c => c.peer === conn.peer);
-                if (!isAuthorizedPeer) {
-                    console.warn(`[P2P-HOST] ⛔ Chặn gói tin chưa xác thực từ ${conn.peer}`);
-                    try { conn.close(); } catch (_) {}
-                    return;
-                }
-
-                // BƯỚC 3: Hợp nhất dữ liệu & phát tán
-                if (data.type === 'SYNC_STATE') {
-                    this.onStateReceived(data.payload, {
-                        senderRole: data.senderRole || 'guest',
-                        isInitialSync: !!data.isInitialSync
-                    });
-                    this.broadcast(this.getAppState(), null, false);
-                }
-            });
-
-            conn.on('close', () => {
-                console.log(`[P2P-HOST] 🔌 Thiết bị ${conn.peer} đã ngắt kết nối.`);
-                const prevLen = this.connections.length;
-                this.connections = this.connections.filter(c => c.peer !== conn.peer);
-                if (this.connections.length !== prevLen) {
-                    this._emitStatus('connected');
-                }
-            });
-
-            conn.on('error', (err) => {
-                console.error(`[P2P-HOST] ⚠️ Lỗi kênh kết nối với ${conn.peer}:`, err);
-            });
+            // BƯỚC 3: Nhận thay đổi từ Guest -> Hợp nhất & phát tán cho toàn bộ phòng
+            if (data.type === 'SYNC_STATE') {
+                this.onStateReceived(data.payload, {
+                    senderRole: data.senderRole || 'guest',
+                    isInitialSync: !!data.isInitialSync
+                });
+                this.broadcast(this.getAppState(), guestDeviceId, false);
+            }
         });
 
-        this.peer.on('disconnected', () => {
-            console.warn('[P2P-HOST] ⚠️ Mất kết nối tới máy chủ tín hiệu PeerJS.');
+        this.client.on('offline', () => {
+            console.warn('[P2P-HOST] ⚠️ Mất kết nối tới máy chủ chuyển tiếp WSS.');
             if (!this.isManualDisconnect) {
                 this._emitStatus('reconnecting');
-                this._scheduleReconnect(3000);
             }
         });
 
-        this.peer.on('error', (err) => {
-            console.error('[P2P-HOST] ❌ Lỗi PeerJS Host:', err.type, err);
-            if (this.isManualDisconnect) return;
-            if (err.type === 'unavailable-id' && !isReconnect) {
-                this.roomCode = null;
-                this.startHost(null, false);
-            } else {
+        this.client.on('reconnect', () => {
+            console.log('[P2P-HOST] 🔄 Đang tự động kết nối lại WSS...');
+            if (!this.isManualDisconnect) {
                 this._emitStatus('reconnecting');
-                this._scheduleReconnect(4000);
             }
+        });
+
+        this.client.on('error', (err) => {
+            console.error('[P2P-HOST] ❌ Lỗi WSS Host:', err);
         });
     }
 
@@ -341,7 +412,6 @@ export class P2PSyncManager {
         const savedToken = (savedSession && savedSession.roomCode === cleanCode) ? (savedSession.sessionToken || '') : '';
         const cleanPin = String(inputPin || '').replace(/\s+/g, '').trim();
 
-        // Nếu đang ở chế độ tự nối lại nhưng không có token đã cấp quyền -> dừng ngay, không lặp vô tận
         if (isReconnect && !savedToken) {
             console.warn('[P2P-GUEST] ⛔ Hủy tự nối lại vì thiết bị chưa từng được cấp quyền.');
             this._clearSession();
@@ -356,8 +426,14 @@ export class P2PSyncManager {
             return;
         }
 
-        await this.ensurePeerLibrary();
-        this._cleanupPeerOnly();
+        try {
+            await this.ensureRelayLibrary();
+        } catch (err) {
+            this.onToast(err.message, 'error');
+            return;
+        }
+
+        this._cleanupClientOnly();
         this.isManualDisconnect = false;
         this.isAuthenticated = false;
 
@@ -366,9 +442,13 @@ export class P2PSyncManager {
         this.sessionToken = savedToken;
         if (savedToken) this._saveSession();
 
-        const targetPeerId = `${this.prefix}${cleanCode}`;
-        let currentStage = 'Khởi tạo kết nối máy chủ tín hiệu';
-        console.log(`[P2P-GUEST] Bắt đầu kết nối phòng ${cleanCode} -> Target=${targetPeerId}`, {
+        const brokerUrl = WSS_BROKERS[this.brokerIndex % WSS_BROKERS.length];
+        const topics = this._topics(cleanCode);
+        const myClientTopic = topics.client(this.deviceId);
+        const clientId = `SGS_GUEST_${cleanCode}_${this.deviceId}_${Math.random().toString(36).slice(2, 6)}`;
+
+        let currentStage = 'Kết nối máy chủ chuyển tiếp WSS (cổng 443)';
+        console.log(`[P2P-GUEST] Bắt đầu kết nối phòng ${cleanCode} | Broker: ${brokerUrl}`, {
             providedPin: cleanPin || '(dùng token tự nối lại)',
             hasSavedToken: Boolean(savedToken),
             deviceId: this.deviceId,
@@ -377,52 +457,46 @@ export class P2PSyncManager {
 
         this._emitStatus(isReconnect ? 'reconnecting' : 'connecting');
 
-        // Timeout 15s (đủ thời gian đàm phán qua TURN TCP 443 nếu mạng khó)
         this._clearAuthTimeout();
         this.authTimeoutTimer = setTimeout(() => {
             if (!this.isAuthenticated && !this.isManualDisconnect) {
-                console.error(`[P2P-GUEST] ⏱️ HẾT THỜI GIAN CHỜ (15s) tại bước: "${currentStage}"`);
-                this._cleanupPeerOnly();
+                console.error(`[P2P-GUEST] ⏱️ HẾT THỜI GIAN CHỜ (10s) tại bước: "${currentStage}"`);
+                this._cleanupClientOnly();
 
                 if (isReconnect && this.sessionToken) {
+                    this.brokerIndex += 1;
                     this._emitStatus('reconnecting');
-                    this._scheduleReconnect(4000);
+                    this._scheduleReconnect(3000);
                 } else {
-                    // Thiết bị chưa xác thực -> Dừng hẳn, không nhảy sang reconnecting
                     this._clearSession();
                     this.role = null;
                     this.roomCode = null;
-                    const timeoutMsg = `Không thể kết nối tới Thiết Bị Chính sau 15 giây (${currentStage}). Hãy tải lại trang trên Thiết Bị Chính rồi thử lại.`;
+                    const timeoutMsg = `Không nhận được phản hồi từ phòng "${cleanCode}" sau 10 giây (${currentStage}). Hãy kiểm tra Thiết Bị Chính đang mở chia sẻ và có mạng.`;
                     this._emitStatus('disconnected', timeoutMsg);
-                    this.onToast('Kết nối quá hạn 15 giây. Kiểm tra lại Thiết Bị Chính.', 'error');
+                    this.onToast('Không tìm thấy phản hồi từ Thiết Bị Chính.', 'error');
                 }
             }
-        }, 15000);
+        }, 10000);
 
-        this.peer = new window.Peer(this._getPeerOptions());
+        this.client = window.mqtt.connect(brokerUrl, {
+            clientId,
+            clean: true,
+            connectTimeout: 5000,
+            reconnectPeriod: 2500,
+            keepalive: 15
+        });
 
-        this.peer.on('open', (myId) => {
-            currentStage = `Đàm phán kênh WebRTC tới ${targetPeerId}`;
-            console.log(`[P2P-GUEST] 1/4 Đã đăng ký PeerJS thành công (GuestID=${myId}). ${currentStage}...`);
+        this.client.on('connect', () => {
+            currentStage = `Đăng ký kênh nhận phản hồi từ phòng ${cleanCode}`;
+            console.log(`[P2P-GUEST] 1/4 Đã kết nối WSS (${brokerUrl}). ${currentStage}...`);
 
-            const conn = this.peer.connect(targetPeerId, {
-                reliable: true,
-                serialization: 'json'
-            });
-            this.hostConn = conn;
+            this.client.subscribe([myClientTopic, topics.broadcast], { qos: 1 }, (err) => {
+                if (err) {
+                    console.error('[P2P-GUEST] ❌ Lỗi subscribe kênh:', err);
+                    return;
+                }
 
-            if (conn.peerConnection) {
-                conn.peerConnection.addEventListener('iceconnectionstatechange', () => {
-                    const iceState = conn.peerConnection?.iceConnectionState;
-                    console.log(`[P2P-GUEST] 🌐 Trạng thái WebRTC ICE: ${iceState}`);
-                    if (iceState === 'failed') {
-                        currentStage = 'Kết nối ngang hàng WebRTC ICE thất bại';
-                    }
-                });
-            }
-
-            const sendAuthPacket = () => {
-                currentStage = 'Đã mở kênh, đang chờ Thiết Bị Chính đối chiếu mã PIN';
+                currentStage = `Đã gửi mã PIN, đang chờ Thiết Bị Chính (${cleanCode}) đối chiếu`;
                 const authPayload = {
                     type: 'AUTH_REQUEST',
                     pin: cleanPin,
@@ -430,19 +504,23 @@ export class P2PSyncManager {
                     sessionToken: savedToken,
                     isReconnect
                 };
-                console.log('[P2P-GUEST] 2/4 Kênh dữ liệu đã mở! Đang gửi gói AUTH_REQUEST:', authPayload);
-                conn.send(authPayload);
-            };
+                console.log('[P2P-GUEST] 2/4 Đã gửi gói AUTH_REQUEST tới Host:', authPayload);
+                this.client.publish(topics.inbox, JSON.stringify(authPayload), { qos: 1 });
+            });
+        });
 
-            if (conn.open) {
-                sendAuthPacket();
-            } else {
-                conn.on('open', sendAuthPacket);
+        this.client.on('message', (topic, rawPayload) => {
+            let data = null;
+            try {
+                data = JSON.parse(rawPayload.toString());
+            } catch (_) {
+                return;
             }
+            if (!data || typeof data !== 'object') return;
 
-            conn.on('data', (data) => {
-                console.log('[P2P-GUEST] 3/4 Nhận phản hồi từ Host:', data);
-                if (!data || typeof data !== 'object') return;
+            // Phản hồi riêng từ Host gửi về cho thiết bị này
+            if (topic === myClientTopic) {
+                console.log('[P2P-GUEST] 3/4 Nhận phản hồi trực tiếp từ Host:', data);
 
                 if (data.type === 'AUTH_REJECTED') {
                     this._clearAuthTimeout();
@@ -453,9 +531,10 @@ export class P2PSyncManager {
                     this.isAuthenticated = false;
                     this.sessionToken = '';
                     this._stopPinTicker();
+                    this._stopHeartbeat();
                     this._clearReconnectTimer();
                     this._clearSession();
-                    this._cleanupPeerOnly();
+                    this._cleanupClientOnly();
 
                     this.role = null;
                     this.roomCode = null;
@@ -469,25 +548,29 @@ export class P2PSyncManager {
                     this.reconnectAttempts = 0;
                     this.isAuthenticated = true;
                     this.sessionToken = data.sessionToken || savedToken;
-                    this._saveSession(); // Lưu token cấp quyền để lần sau rớt mạng tự nối lại không cần PIN
+                    this._saveSession();
 
                     this._clearReconnectTimer();
                     this._startPinTicker();
+                    this._startHeartbeat();
                     this._emitStatus('connected');
 
-                    console.log(`[P2P-GUEST] 4/4 ✅ XÁC THỰC THÀNH CÔNG phòng ${cleanCode}! Token đã lưu: ${this.sessionToken}`);
+                    console.log(`[P2P-GUEST] 4/4 ✅ XÁC THỰC THÀNH CÔNG phòng ${cleanCode}! Token=${this.sessionToken}`);
                     this.onToast(
                         isReconnect ? `Đã tự động kết nối lại phòng ${cleanCode}` : `Đã xác thực & đồng bộ phòng ${cleanCode}`,
                         'success'
                     );
 
-                    conn.send({
+                    // Gửi dữ liệu cục bộ lên Host để hợp nhất (nếu có chấm điểm lúc rớt mạng)
+                    this.client.publish(topics.inbox, JSON.stringify({
                         type: 'SYNC_STATE',
+                        deviceId: this.deviceId,
+                        sessionToken: this.sessionToken,
                         payload: this.getAppState(),
                         senderRole: 'guest',
                         isInitialSync: true,
                         timestamp: Date.now()
-                    });
+                    }), { qos: 1 });
                     return;
                 }
 
@@ -497,58 +580,40 @@ export class P2PSyncManager {
                         isInitialSync: !!data.isInitialSync
                     });
                 }
-            });
-
-            conn.on('close', () => {
-                console.warn('[P2P-GUEST] 🔌 Kênh kết nối với Host bị đóng.');
-                const wasAuthed = this.isAuthenticated || Boolean(this.sessionToken);
-                this.isAuthenticated = false;
-                if (!this.isManualDisconnect && wasAuthed) {
-                    this._emitStatus('reconnecting');
-                    this._scheduleReconnect(3000);
-                }
-            });
-
-            conn.on('error', (err) => {
-                console.error('[P2P-GUEST] ⚠️ Lỗi kênh kết nối:', err);
-                const wasAuthed = this.isAuthenticated || Boolean(this.sessionToken);
-                this.isAuthenticated = false;
-                if (!this.isManualDisconnect && wasAuthed) {
-                    this._emitStatus('reconnecting');
-                    this._scheduleReconnect(3500);
-                }
-            });
-        });
-
-        this.peer.on('disconnected', () => {
-            console.warn('[P2P-GUEST] ⚠️ Mất kết nối máy chủ tín hiệu PeerJS.');
-            const wasAuthed = this.isAuthenticated || Boolean(this.sessionToken);
-            if (!this.isManualDisconnect && wasAuthed) {
-                this._emitStatus('reconnecting');
-                this._scheduleReconnect(3000);
-            }
-        });
-
-        this.peer.on('error', (err) => {
-            console.error('[P2P-GUEST] ❌ Lỗi PeerJS Guest:', err.type, err);
-            if (this.isManualDisconnect) return;
-
-            if (err.type === 'peer-unavailable' && !isReconnect) {
-                this._clearAuthTimeout();
-                this._cleanupPeerOnly();
-                this._clearSession();
-                this.role = null;
-                this.roomCode = null;
-                const notFoundMsg = `Không tìm thấy phòng "${cleanCode}". Hãy kiểm tra Thiết Bị Chính đã bật chia sẻ chưa.`;
-                this._emitStatus('disconnected', notFoundMsg);
-                this.onToast(notFoundMsg, 'error');
                 return;
             }
 
-            if (this.sessionToken) {
-                this._emitStatus('reconnecting');
-                this._scheduleReconnect(3500);
+            // Kênh đồng bộ chung của toàn phòng
+            if (topic === topics.broadcast && this.isAuthenticated) {
+                if (data.excludeDeviceId && data.excludeDeviceId === this.deviceId) {
+                    return; // Bỏ qua gói phản hồi của chính thiết bị này
+                }
+                if (data.type === 'SYNC_STATE') {
+                    this.onStateReceived(data.payload, {
+                        senderRole: data.senderRole || 'host',
+                        isInitialSync: !!data.isInitialSync
+                    });
+                }
             }
+        });
+
+        this.client.on('offline', () => {
+            console.warn('[P2P-GUEST] ⚠️ Mất kết nối tới máy chủ chuyển tiếp WSS.');
+            if (!this.isManualDisconnect && this.sessionToken) {
+                this.isAuthenticated = false;
+                this._emitStatus('reconnecting');
+            }
+        });
+
+        this.client.on('reconnect', () => {
+            console.log('[P2P-GUEST] 🔄 Đang tự động kết nối lại WSS...');
+            if (!this.isManualDisconnect && this.sessionToken) {
+                this._emitStatus('reconnecting');
+            }
+        });
+
+        this.client.on('error', (err) => {
+            console.error('[P2P-GUEST] ❌ Lỗi WSS Guest:', err);
         });
     }
 
@@ -557,37 +622,56 @@ export class P2PSyncManager {
         this.disconnect(false);
     }
 
-    broadcast(statePayload, excludePeerId = null, isInitialSync = false) {
-        if (!this.role || !this.isAuthenticated) return;
+    broadcast(statePayload, excludeDeviceId = null, isInitialSync = false) {
+        if (!this.role || !this.isAuthenticated || !this.client || !this.client.connected || !this.roomCode) return;
 
-        const message = {
-            type: 'SYNC_STATE',
-            payload: statePayload,
-            senderRole: this.role,
-            isInitialSync,
-            timestamp: Date.now()
-        };
+        const topics = this._topics(this.roomCode);
 
         if (this.role === 'host') {
-            this.connections.forEach(conn => {
-                if (conn.open && conn.peer !== excludePeerId) {
-                    conn.send(message);
-                }
-            });
-        } else if (this.role === 'guest' && this.hostConn && this.hostConn.open) {
-            this.hostConn.send(message);
+            this.client.publish(topics.broadcast, JSON.stringify({
+                type: 'SYNC_STATE',
+                payload: statePayload,
+                senderRole: 'host',
+                excludeDeviceId,
+                isInitialSync,
+                timestamp: Date.now()
+            }), { qos: 1 });
+        } else if (this.role === 'guest' && this.sessionToken) {
+            this.client.publish(topics.inbox, JSON.stringify({
+                type: 'SYNC_STATE',
+                deviceId: this.deviceId,
+                sessionToken: this.sessionToken,
+                payload: statePayload,
+                senderRole: 'guest',
+                isInitialSync,
+                timestamp: Date.now()
+            }), { qos: 1 });
         }
     }
 
     disconnect(notify = true) {
+        // Báo cho Host biết thiết bị phụ rời phòng trước khi ngắt
+        if (this.role === 'guest' && this.client && this.client.connected && this.roomCode && this.sessionToken) {
+            try {
+                const topics = this._topics(this.roomCode);
+                this.client.publish(topics.inbox, JSON.stringify({
+                    type: 'GUEST_LEAVE',
+                    deviceId: this.deviceId,
+                    sessionToken: this.sessionToken
+                }));
+            } catch (_) {}
+        }
+
         this.isManualDisconnect = true;
         this.isAuthenticated = false;
         this.sessionToken = '';
+        this.activeGuests.clear();
         this.stopQrScanner();
         this._stopPinTicker();
+        this._stopHeartbeat();
         this._clearReconnectTimer();
         this._clearAuthTimeout();
-        this._cleanupPeerOnly();
+        this._cleanupClientOnly();
         this._clearSession();
 
         this.role = null;
@@ -703,7 +787,7 @@ export class P2PSyncManager {
         return '';
     }
 
-    _scheduleReconnect(delayMs = 3500) {
+    _scheduleReconnect(delayMs = 2500) {
         if (this.isManualDisconnect || !this.roomCode || !this.role) return;
         if (this.role === 'guest' && !this.sessionToken) return;
 
@@ -734,29 +818,13 @@ export class P2PSyncManager {
         }
     }
 
-    // Gỡ toàn bộ listener trước khi destroy() để không kích hoạt nhầm sự kiện disconnected
-    _cleanupPeerOnly() {
-        if (this.hostConn) {
+    _cleanupClientOnly() {
+        if (this.client) {
             try {
-                this.hostConn.removeAllListeners?.();
-                this.hostConn.close();
+                this.client.removeAllListeners?.();
+                this.client.end(true);
             } catch (_) {}
-            this.hostConn = null;
-        }
-        this.connections.forEach(c => {
-            try {
-                c.removeAllListeners?.();
-                c.close();
-            } catch (_) {}
-        });
-        this.connections = [];
-
-        if (this.peer) {
-            try {
-                this.peer.removeAllListeners?.();
-                this.peer.destroy();
-            } catch (_) {}
-            this.peer = null;
+            this.client = null;
         }
     }
 
@@ -769,7 +837,7 @@ export class P2PSyncManager {
             dynamicPin: pinInfo.pin,
             pinSecondsLeft: pinInfo.secondsLeft,
             authError,
-            peerCount: this.connections.length,
+            peerCount: this.activeGuests.size,
             reconnectAttempts: this.reconnectAttempts,
             joinUrl: (this.role === 'host' && this.roomCode) ? this.buildJoinUrl(this.roomCode) : null
         });
@@ -790,13 +858,13 @@ export class P2PSyncManager {
 
     _saveAuthorizedDevices() {
         try {
-            sessionStorage.setItem('SGS_HOST_AUTH_DEVICES', JSON.stringify(this.authorizedDevices));
+            localStorage.setItem('SGS_HOST_AUTH_DEVICES', JSON.stringify(this.authorizedDevices));
         } catch (_) {}
     }
 
     _loadAuthorizedDevices() {
         try {
-            const raw = sessionStorage.getItem('SGS_HOST_AUTH_DEVICES');
+            const raw = localStorage.getItem('SGS_HOST_AUTH_DEVICES');
             return raw ? JSON.parse(raw) : {};
         } catch (_) {
             return {};
