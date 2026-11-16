@@ -34,7 +34,7 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 
-<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col antialiased" x-data="examApp" x-init="initApp()">
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col antialiased overflow-x-hidden" x-data="examApp" x-init="initApp()">
 
     <!-- MÀN HÌNH CẢNH BÁO KHI MỞ BẰNG TRÌNH DUYỆT TRONG ZALO -->
     <div x-show="isZaloBrowser" x-cloak class="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-5">
@@ -177,7 +177,7 @@
                 </div>
             </template>
 
-            <!-- TRẠNG THÁI MẤT MẠNG & ĐANG TỰ ĐỘNG KẾT NỐI LẠI (MỚI THÊM) -->
+            <!-- TRẠNG THÁI MẤT MẠNG & ĐANG TỰ ĐỘNG KẾT NỐI LẠI -->
             <template x-if="syncState.status === 'reconnecting'">
                 <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl text-center space-y-3">
                     <i class="fa-solid fa-rotate fa-spin text-2xl text-amber-600"></i>
@@ -458,97 +458,189 @@
         </template>
     </div>
 
-    <!-- TOP HEADER NAVBAR -->
-    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-40">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-16">
-                <div class="flex items-center space-x-3">
-                    <div class="bg-blue-600 p-2 rounded-xl text-white shadow-md">
-                        <i class="fa-solid fa-clock-rotate-left text-lg sm:text-xl"></i>
-                    </div>
-                    <div>
-                        <h1 class="font-bold text-sm sm:text-lg leading-tight tracking-wide text-white truncate max-w-[160px] sm:max-w-none" 
-                            x-text="config.examTitle || 'SỔ GIÁM SÁT THI'"></h1>
-                        <p class="text-[11px] text-slate-400 font-medium hidden sm:block">
-                            <span x-text="config.subjectName || 'Môn học chưa đặt'"></span> • Phòng: <span class="text-slate-200 font-semibold" x-text="config.roomName || 'P.01'"></span> • Giờ thi: <span class="text-amber-300 font-semibold" x-text="config.examTime || '--:--'"></span>
-                        </p>
-                    </div>
+    <!-- DÒNG 1: HEADER CỐ ĐỊNH TIÊU ĐỀ & ICON TRẠNG THÁI ĐỒNG BỘ -->
+    <header class="bg-slate-900 text-white sticky top-0 z-40 shadow-md border-b border-slate-800">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-2">
+            <!-- Logo + Tiêu đề cố định -->
+            <div class="flex items-center space-x-2.5 min-w-0">
+                <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-sm">
+                    <i class="fa-solid fa-clipboard-check text-sm"></i>
                 </div>
-
-                <div class="flex items-center space-x-2 sm:space-x-3">
-    
-                    <!-- DÁN NÚT SUẤT THI VÀO ĐÂY -->
-                    <button @click="openSessionModal()" 
-                            class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold transition-all">
-                        <i class="fa-solid fa-folder-open text-amber-400"></i>
-                        <span>Lưu/Mở Suất Thi</span>
-                        <span x-show="sessionState.savedSessions.length > 0" 
-                              class="px-1.5 py-0.2 bg-amber-500 text-slate-900 rounded-full text-[10px] font-black"
-                              x-text="sessionState.savedSessions.length"></span>
-                    </button>
-                    
-                    <!-- NÚT MỞ CỔNG ĐỒNG BỘ TRỰC TIẾP P2P -->
-                    <button @click="syncState.showModal = true" 
-                            class="flex items-center space-x-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all"
-                            :class="syncState.status === 'connected' 
-                                ? 'bg-emerald-600/20 border-emerald-500 text-emerald-300 hover:bg-emerald-600/30' 
-                                : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'">
-                        <i class="fa-solid fa-tower-broadcast" :class="{'animate-pulse text-emerald-400': syncState.status === 'connected'}"></i>
-                        <span x-text="syncState.status === 'connected' ? syncState.roomCode : 'Đồng Bộ'"></span>
-                        <span x-show="syncState.status === 'connected' && syncState.role === 'host'" 
-                              class="px-1.5 py-0.2 bg-emerald-500 text-slate-900 rounded-full text-[10px] font-black"
-                              x-text="syncState.peerCount"></span>
-                    </button>
-
-                    <div class="text-right border-r border-slate-700 pr-2 sm:pr-4 hidden md:block">
-                        <div class="text-[10px] sm:text-xs text-slate-400 font-medium">Giờ Hệ Thống</div>
-                        <div class="text-xs sm:text-sm font-mono font-bold text-emerald-400" x-text="currentSystemTime">--:--:--</div>
-                    </div>
-                    
-                    <div class="flex items-center space-x-2 bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-700">
-                        <span class="w-2.5 h-2.5 rounded-full" 
-                              :class="timer.isRunning ? 'bg-emerald-500 animate-ping' : (timer.timeLeft === 0 ? 'bg-rose-500' : 'bg-amber-500')"></span>
-                        <span class="text-[11px] font-semibold text-slate-300 hidden sm:inline" x-text="getTimerStatusText()"></span>
-                    </div>
-                </div>
+                <h1 class="text-sm sm:text-base font-extrabold tracking-tight text-white truncate">
+                    Sổ tay Giám sát &amp; Chấm thi
+                </h1>
             </div>
+
+            <!-- Icon trạng thái đồng bộ duy nhất ở góc phải -->
+            <button @click="syncState.showModal = true"
+                    title="Trạng thái Đồng bộ & Chia sẻ thiết bị"
+                    class="relative flex items-center justify-center w-9 h-9 rounded-xl border transition-all shrink-0"
+                    :class="{
+                        'bg-emerald-500/15 border-emerald-500/40 text-emerald-400': syncState.status === 'connected',
+                        'bg-amber-500/15 border-amber-500/40 text-amber-400': syncState.status === 'reconnecting',
+                        'bg-blue-500/15 border-blue-500/40 text-blue-400': syncState.status === 'connecting',
+                        'bg-slate-800 border-slate-700 text-slate-400 hover:text-white': syncState.status === 'disconnected'
+                    }">
+                <i class="fa-solid fa-tower-broadcast text-sm" :class="{ 'fa-spin': syncState.status === 'connecting' }"></i>
+                <!-- Chấm tròn báo trạng thái -->
+                <span class="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-slate-900"
+                      :class="{
+                          'bg-emerald-500 animate-pulse': syncState.status === 'connected',
+                          'bg-amber-500 animate-ping': syncState.status === 'reconnecting',
+                          'bg-blue-500': syncState.status === 'connecting',
+                          'bg-slate-500': syncState.status === 'disconnected'
+                      }"></span>
+            </button>
         </div>
     </header>
 
-    <!-- NAVIGATION TABS BAR -->
-    <nav class="bg-white border-b border-slate-200 shadow-sm sticky top-16 z-30">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex space-x-1 sm:space-x-6 overflow-x-auto py-2 no-scrollbar">
-                <button @click="activeTab = 'timer'" 
-                        :class="activeTab === 'timer' ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'"
-                        class="flex items-center space-x-2 px-3 py-2 border-b-2 font-medium text-xs sm:text-sm rounded-t-lg transition-all whitespace-nowrap">
-                    <i class="fa-solid fa-stopwatch text-sm"></i>
-                    <span>⏱️ Đếm Ngược</span>
-                </button>
+    <!-- DÒNG 2: THANH MENU HAMBURGER (MOBILE) & THANH TAB ĐẦY ĐỦ 6 CHỨC NĂNG -->
+    <nav class="bg-white border-b border-slate-200 sticky top-14 z-30 shadow-sm" @click.away="mobileMenuOpen = false">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6">
+            
+            <!-- Thanh điều khiển trên Điện thoại (Hiện mục đang mở + Nút Hamburger) -->
+            <div class="flex md:hidden items-center justify-between h-12">
+                <div class="flex items-center space-x-2 text-xs font-extrabold text-blue-700">
+                    <i class="fa-solid" :class="{
+                        'fa-stopwatch': activeTab === 'timer',
+                        'fa-sliders': activeTab === 'config',
+                        'fa-shuffle': activeTab === 'picker',
+                        'fa-users-viewfinder': activeTab === 'students'
+                    }"></i>
+                    <span x-text="{
+                        timer: 'Đếm ngược',
+                        config: 'Cài đặt Suất thi',
+                        picker: 'Bốc thăm Đề thi',
+                        students: 'Chấm thi & Bảng điểm'
+                    }[activeTab] || 'Bảng điều khiển'"></span>
+                </div>
 
-                <button @click="activeTab = 'picker'" 
-                        :class="activeTab === 'picker' ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'"
-                        class="flex items-center space-x-2 px-3 py-2 border-b-2 font-medium text-xs sm:text-sm rounded-t-lg transition-all whitespace-nowrap">
-                    <i class="fa-solid fa-dice-five text-sm"></i>
-                    <span>🎲 Bốc Đề Thi</span>
-                    <span class="px-1.5 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-800 rounded-full" x-text="getExamListArray().length">0</span>
-                </button>
-
-                <button @click="activeTab = 'students'" 
-                        :class="activeTab === 'students' ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'"
-                        class="flex items-center space-x-2 px-3 py-2 border-b-2 font-medium text-xs sm:text-sm rounded-t-lg transition-all whitespace-nowrap">
-                    <i class="fa-solid fa-users text-sm"></i>
-                    <span>📋 Thí Sinh & Chấm Điểm</span>
-                    <span class="px-1.5 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-700 rounded-full" x-text="students.length">0</span>
-                </button>
-
-                <button @click="activeTab = 'config'" 
-                        :class="activeTab === 'config' ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'"
-                        class="flex items-center space-x-2 px-3 py-2 border-b-2 font-medium text-xs sm:text-sm rounded-t-lg transition-all whitespace-nowrap">
-                    <i class="fa-solid fa-sliders text-sm"></i>
-                    <span>⚙️ Cấu Hình Thi</span>
+                <button @click="mobileMenuOpen = !mobileMenuOpen"
+                        class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border border-slate-200 transition-all">
+                    <i class="fa-solid text-sm" :class="mobileMenuOpen ? 'fa-xmark' : 'fa-bars'"></i>
+                    <span>Menu</span>
                 </button>
             </div>
+
+            <!-- Danh sách xổ xuống khi bấm nút Hamburger trên Điện thoại -->
+            <div x-show="mobileMenuOpen" x-cloak class="md:hidden pb-3 pt-1 border-t border-slate-100 space-y-1">
+                <!-- 1. Đếm ngược -->
+                <button @click="activeTab = 'timer'; mobileMenuOpen = false"
+                        class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all"
+                        :class="activeTab === 'timer' ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'">
+                    <i class="fa-solid fa-stopwatch w-4 text-center"></i>
+                    <span>Đếm ngược</span>
+                </button>
+
+                <!-- 2. Cài đặt Suất thi -->
+                <button @click="activeTab = 'config'; mobileMenuOpen = false"
+                        class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all"
+                        :class="activeTab === 'config' ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'">
+                    <i class="fa-solid fa-sliders w-4 text-center"></i>
+                    <span>Cài đặt Suất thi</span>
+                </button>
+
+                <!-- 3. Bốc thăm Đề thi -->
+                <button @click="activeTab = 'picker'; mobileMenuOpen = false"
+                        class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all"
+                        :class="activeTab === 'picker' ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'">
+                    <div class="flex items-center space-x-3">
+                        <i class="fa-solid fa-shuffle w-4 text-center"></i>
+                        <span>Bốc thăm Đề thi</span>
+                    </div>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-600" x-text="getExamListArray().length"></span>
+                </button>
+
+                <!-- 4. Chấm thi & Bảng điểm -->
+                <button @click="activeTab = 'students'; mobileMenuOpen = false"
+                        class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all"
+                        :class="activeTab === 'students' ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'">
+                    <div class="flex items-center space-x-3">
+                        <i class="fa-solid fa-users-viewfinder w-4 text-center"></i>
+                        <span>Chấm thi &amp; Bảng điểm</span>
+                    </div>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-700" x-text="students.length"></span>
+                </button>
+
+                <div class="my-1 border-t border-slate-100"></div>
+
+                <!-- 5. Đồng bộ & Chia sẻ thiết bị -->
+                <button @click="syncState.showModal = true; mobileMenuOpen = false"
+                        class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all">
+                    <div class="flex items-center space-x-3">
+                        <i class="fa-solid fa-tower-broadcast w-4 text-center text-blue-600"></i>
+                        <span>Đồng bộ &amp; Chia sẻ thiết bị</span>
+                    </div>
+                    <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full"
+                          :class="syncState.status === 'connected' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'"
+                          x-text="syncState.status === 'connected' ? 'Đang nối' : 'Chưa nối'"></span>
+                </button>
+
+                <!-- 6. Lưu/Mở suất thi -->
+                <button @click="openSessionModal(); mobileMenuOpen = false"
+                        class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all">
+                    <div class="flex items-center space-x-3">
+                        <i class="fa-solid fa-folder-open w-4 text-center text-amber-500"></i>
+                        <span>Lưu/Mở suất thi</span>
+                    </div>
+                    <span x-show="sessionState.savedSessions.length > 0"
+                          class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800"
+                          x-text="sessionState.savedSessions.length"></span>
+                </button>
+            </div>
+
+            <!-- Thanh ngang đầy đủ 6 mục trên Màn hình Máy tính / Tablet lớn -->
+            <div class="hidden md:flex items-center justify-between h-12 gap-1">
+                <div class="flex items-center space-x-1">
+                    <button @click="activeTab = 'timer'"
+                            class="px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5"
+                            :class="activeTab === 'timer' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'">
+                        <i class="fa-solid fa-stopwatch"></i>
+                        <span>Đếm ngược</span>
+                    </button>
+
+                    <button @click="activeTab = 'config'"
+                            class="px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5"
+                            :class="activeTab === 'config' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'">
+                        <i class="fa-solid fa-sliders"></i>
+                        <span>Cài đặt Suất thi</span>
+                    </button>
+
+                    <button @click="activeTab = 'picker'"
+                            class="px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5"
+                            :class="activeTab === 'picker' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'">
+                        <i class="fa-solid fa-shuffle"></i>
+                        <span>Bốc thăm Đề thi</span>
+                        <span class="px-1.5 py-0.5 text-[10px] rounded-full bg-slate-100 text-slate-600" x-text="getExamListArray().length"></span>
+                    </button>
+
+                    <button @click="activeTab = 'students'"
+                            class="px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5"
+                            :class="activeTab === 'students' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'">
+                        <i class="fa-solid fa-users-viewfinder"></i>
+                        <span>Chấm thi &amp; Bảng điểm</span>
+                        <span class="px-1.5 py-0.5 text-[10px] rounded-full bg-blue-100 text-blue-700" x-text="students.length"></span>
+                    </button>
+                </div>
+
+                <div class="flex items-center space-x-2">
+                    <button @click="syncState.showModal = true"
+                            class="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 flex items-center space-x-1.5 transition-all">
+                        <i class="fa-solid fa-tower-broadcast text-blue-600"></i>
+                        <span>Đồng bộ &amp; Chia sẻ</span>
+                    </button>
+
+                    <button @click="openSessionModal()"
+                            class="px-3 py-1.5 rounded-lg text-xs font-bold border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 flex items-center space-x-1.5 transition-all">
+                        <i class="fa-solid fa-folder-open text-amber-600"></i>
+                        <span>Lưu/Mở suất thi</span>
+                        <span x-show="sessionState.savedSessions.length > 0"
+                              class="px-1.5 py-0.5 text-[10px] rounded-full bg-amber-500 text-white"
+                              x-text="sessionState.savedSessions.length"></span>
+                    </button>
+                </div>
+            </div>
+
         </div>
     </nav>
 
