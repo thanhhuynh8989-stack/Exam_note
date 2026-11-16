@@ -382,6 +382,31 @@ function createExamAppState() {
             }
         },
 
+        confirmClearAllStudents() {
+            const total = this.students.length;
+            if (total === 0) {
+                this.triggerToast("Danh sách thí sinh hiện đang trống.", "info");
+                return;
+            }
+            this.confirmModal = {
+                show: true,
+                title: "Xóa toàn bộ danh sách thí sinh",
+                message: `Bạn có chắc chắn muốn xóa toàn bộ ${total} thí sinh hiện có (bao gồm điểm số và mã đề đã gán) không?`,
+                onConfirm: () => {
+                    this.students.forEach(s => {
+                        const k = s.id || s.mssv;
+                        if (k && !this.deletedStudentIds.includes(k)) {
+                            this.deletedStudentIds.push(k);
+                        }
+                    });
+                    this.students = [];
+                    this._lastSavedStudents = [];
+                    this.recordAuditLog(`Xóa toàn bộ danh sách thí sinh hiện có (${total} SV)`);
+                    this.triggerToast(`Đã xóa toàn bộ ${total} thí sinh khỏi danh sách!`, "success");
+                }
+            };
+        },
+
         handleSectionExcelScoreUpload(event, sectionIdx) {
             scoreImportModule.handleSectionExcelScoreUpload(this, event, sectionIdx);
         },
