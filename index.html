@@ -323,7 +323,7 @@
 
                     <button @click="startRandomDraw()" :disabled="picker.isSpinning"
                             class="w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-extrabold text-base shadow-lg shadow-indigo-200 flex items-center justify-center gap-2.5 transition cursor-pointer">
-                        <i data-lucide="dices" class="w-5 h-5" :class="picker.isSpinning ? 'animate-spin' : ''"></i>
+                        <i data-lucide="dices" class="w-5 h-5" :class="{ 'animate-spin': picker && picker.isSpinning }"></i>
                         <span x-text="picker.isSpinning ? 'Đang quay ngẫu nhiên...' : (picker.targetStudentId === 'ALL' ? 'Phát đề ngẫu nhiên hàng loạt' : 'Bắt đầu bốc thăm')"></span>
                     </button>
                 </div>
