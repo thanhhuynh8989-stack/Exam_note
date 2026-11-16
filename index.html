@@ -247,9 +247,13 @@
 
             <!-- TRẠNG THÁI ĐANG KẾT NỐI -->
             <template x-if="syncState.status === 'connecting'">
-                <div class="py-8 text-center space-y-3">
+                <div class="py-8 text-center space-y-4">
                     <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-600"></i>
                     <p class="text-xs font-bold text-slate-700" x-text="`Đang xác thực mã PIN & kết nối phòng ${syncState.roomCode}...`"></p>
+                    <button @click="disconnectLiveSync()" type="button"
+                            class="px-4 py-2 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 rounded-xl text-xs font-bold transition-all">
+                        Hủy Kết Nối
+                    </button>
                 </div>
             </template>
 
