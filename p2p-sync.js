@@ -1,4 +1,17 @@
-// p2p-sync.js - Quản lý đồng bộ P2P (Smart Merge, Auto-Reconnect, Mật khẩu/PIN & Quét Camera QR)
+// p2p-sync.js - Đồng bộ P2P bảo mật bằng Mã PIN động theo thời gian & Quét QR đa chế độ
+
+// Hàm sinh mã PIN 4 số ngẫu nhiên đồng bộ theo khung thời gian 60 giây trên mọi thiết bị
+export function computeTimeSyncedPin(roomCode, timeSlot = Math.floor(Date.now() / 60000)) {
+    const cleanRoom = String(roomCode || '').trim().toUpperCase();
+    const seed = `${cleanRoom}::SGS_TIME_PIN_V1::${timeSlot}`;
+    let hash = 2166136261;
+    for (let i = 0; i < seed.length; i++) {
+        hash ^= seed.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+    }
+    const pinNum = Math.abs(hash >>> 0) % 10000;
+    return String(pinNum).padStart(4, '0');
+}
 
 export class P2PSyncManager {
     constructor(options = {}) {
@@ -6,22 +19,23 @@ export class P2PSyncManager {
         this.peer = null;
         this.role = null; // 'host' | 'guest' | null
         this.roomCode = null;
-        this.password = ''; // Mật khẩu / Mã PIN ghép đôi của phòng thi
-        this.connections = []; // Chỉ chứa các kết nối Guest đã xác thực thành công
+        this.connections = []; // Danh sách thiết bị phụ đã xác thực
         this.hostConn = null;
         this.isAuthenticated = false;
 
         this.isManualDisconnect = false;
         this.reconnectTimer = null;
+        this.pinTickerTimer = null;
         this.reconnectAttempts = 0;
         this.html5QrCode = null;
+        this._lastSlot = null;
 
         this.getAppState = options.getAppState || (() => ({}));
         this.onStateReceived = options.onStateReceived || (() => {});
         this.onStatusChange = options.onStatusChange || (() => {});
+        this.onPinTick = options.onPinTick || (() => {});
         this.onToast = options.onToast || ((msg) => console.log(msg));
 
-        // Tự động kích hoạt khôi phục kết nối ngay khi trình duyệt có Internet trở lại
         window.addEventListener('online', () => {
             if (!this.isManualDisconnect && this.roomCode && this.role) {
                 this.onToast('Đã có Internet trở lại. Đang khôi phục đồng bộ...', 'info');
@@ -48,14 +62,60 @@ export class P2PSyncManager {
         });
     }
 
-    // Khởi tạo hoặc khôi phục phòng thi (Host) kèm mật khẩu/PIN bảo vệ
-    async startHost(customCode = null, password = '', isReconnect = false) {
-        // Hỗ trợ tương thích ngược nếu tham số thứ 2 là boolean (isReconnect)
-        if (typeof password === 'boolean') {
-            isReconnect = password;
-            password = this.password || '';
-        }
+    async ensureQrScannerLibrary() {
+        if (window.Html5Qrcode) return;
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+            script.onload = resolve;
+            script.onerror = () => reject(new Error('Không thể tải thư viện quét QR'));
+            document.head.appendChild(script);
+        });
+    }
 
+    getCurrentPinInfo() {
+        if (!this.roomCode) return { pin: '', secondsLeft: 60 };
+        const nowSec = Math.floor(Date.now() / 1000);
+        const slot = Math.floor(nowSec / 60);
+        const secondsLeft = 60 - (nowSec % 60);
+        return {
+            pin: computeTimeSyncedPin(this.roomCode, slot),
+            secondsLeft,
+            slot
+        };
+    }
+
+    _startPinTicker() {
+        this._stopPinTicker();
+        this._lastSlot = null;
+
+        const tick = () => {
+            if (!this.roomCode || !this.role) return;
+            const info = this.getCurrentPinInfo();
+            const slotChanged = this._lastSlot !== null && this._lastSlot !== info.slot;
+            this._lastSlot = info.slot;
+
+            this.onPinTick({
+                pin: info.pin,
+                secondsLeft: info.secondsLeft,
+                slotChanged,
+                joinUrl: this.role === 'host' ? this.buildJoinUrl(this.roomCode, info.pin) : null
+            });
+        };
+
+        tick();
+        this.pinTickerTimer = setInterval(tick, 1000);
+    }
+
+    _stopPinTicker() {
+        if (this.pinTickerTimer) {
+            clearInterval(this.pinTickerTimer);
+            this.pinTickerTimer = null;
+        }
+    }
+
+    // Khởi tạo phòng thi (Host) - Tự động bật bảo mật PIN động theo thời gian
+    async startHost(customCode = null, isReconnect = false) {
         await this.ensurePeerLibrary();
         this._cleanupPeerOnly();
         this.isManualDisconnect = false;
@@ -63,7 +123,6 @@ export class P2PSyncManager {
 
         const randomDigits = Math.floor(1000 + Math.random() * 9000);
         this.roomCode = customCode || this.roomCode || `THI-${randomDigits}`;
-        this.password = (password !== undefined && password !== null) ? String(password).trim() : (this.password || '');
         this.role = 'host';
         this._saveSession();
 
@@ -76,11 +135,12 @@ export class P2PSyncManager {
             this.reconnectAttempts = 0;
             this.isAuthenticated = true;
             this._clearReconnectTimer();
+            this._startPinTicker();
             this._emitStatus('connected');
 
+            const { pin } = this.getCurrentPinInfo();
             if (!isReconnect) {
-                const lockMsg = this.password ? ` (Mã ghép đôi: ${this.password})` : '';
-                this.onToast(`Đã mở cổng đồng bộ: ${this.roomCode}${lockMsg}`, 'success');
+                this.onToast(`Đã mở phòng ${this.roomCode} (PIN hiện tại: ${pin})`, 'success');
             } else {
                 this.onToast(`Đã khôi phục phòng đồng bộ ${this.roomCode}`, 'success');
             }
@@ -90,15 +150,20 @@ export class P2PSyncManager {
             conn.on('data', (data) => {
                 if (!data || typeof data !== 'object') return;
 
-                // BƯỚC 1: Kiểm tra gói tin xác thực mật khẩu từ thiết bị phụ
+                // BƯỚC 1: Xác thực mã PIN động theo thời gian (chấp nhận khung hiện tại & ±1 phút)
                 if (data.type === 'AUTH_REQUEST') {
-                    const requiredPwd = (this.password || '').trim();
-                    const providedPwd = (data.password || '').trim();
+                    const providedPin = String(data.pin || '').trim();
+                    const currentSlot = Math.floor(Date.now() / 60000);
+                    const validPins = [
+                        computeTimeSyncedPin(this.roomCode, currentSlot),
+                        computeTimeSyncedPin(this.roomCode, currentSlot - 1),
+                        computeTimeSyncedPin(this.roomCode, currentSlot + 1)
+                    ];
 
-                    if (requiredPwd && providedPwd !== requiredPwd) {
+                    if (!providedPin || !validPins.includes(providedPin)) {
                         conn.send({
                             type: 'AUTH_REJECTED',
-                            reason: 'Sai mật khẩu hoặc mã ghép đôi phòng thi!'
+                            reason: 'Mã PIN không đúng hoặc đã hết hạn 60 giây! Vui lòng xem mã PIN mới trên màn hình chính.'
                         });
                         setTimeout(() => {
                             try { conn.close(); } catch (_) {}
@@ -106,13 +171,12 @@ export class P2PSyncManager {
                         return;
                     }
 
-                    // Xác thực hợp lệ -> Đưa vào danh sách kết nối được phép truy cập
+                    // Xác thực hợp lệ
                     this.connections = this.connections.filter(c => c.peer !== conn.peer);
                     this.connections.push(conn);
                     this._emitStatus('connected');
                     this.onToast('Một thiết bị giám thị đã xác thực và kết nối!', 'info');
 
-                    // Báo xác thực thành công & gửi trạng thái hiện tại của Host để Guest Smart Merge
                     conn.send({ type: 'AUTH_ACCEPTED' });
                     conn.send({
                         type: 'SYNC_STATE',
@@ -124,20 +188,19 @@ export class P2PSyncManager {
                     return;
                 }
 
-                // BƯỚC 2: Chặn mọi gói dữ liệu nếu thiết bị chưa xác thực
+                // BƯỚC 2: Chặn mọi gói tin nếu chưa xác thực
                 const isAuthorizedPeer = this.connections.some(c => c.peer === conn.peer);
                 if (!isAuthorizedPeer) {
                     try { conn.close(); } catch (_) {}
                     return;
                 }
 
-                // BƯỚC 3: Nhận dữ liệu từ Guest hợp lệ -> Hợp nhất thông minh & phát tán lại
+                // BƯỚC 3: Hợp nhất dữ liệu & phát tán
                 if (data.type === 'SYNC_STATE') {
                     this.onStateReceived(data.payload, {
                         senderRole: data.senderRole || 'guest',
                         isInitialSync: !!data.isInitialSync
                     });
-
                     this.broadcast(this.getAppState(), null, false);
                 }
             });
@@ -160,10 +223,9 @@ export class P2PSyncManager {
 
         this.peer.on('error', (err) => {
             if (this.isManualDisconnect) return;
-
             if (err.type === 'unavailable-id' && !isReconnect) {
                 this.roomCode = null;
-                this.startHost(null, this.password, false);
+                this.startHost(null, false);
             } else {
                 this._emitStatus('reconnecting');
                 this._scheduleReconnect(4000);
@@ -171,17 +233,21 @@ export class P2PSyncManager {
         });
     }
 
-    // Tham gia hoặc tự kết nối lại phòng thi (Guest) kèm mật khẩu/PIN
-    async joinRoom(rawCode, password = '', isReconnect = false) {
-        // Hỗ trợ tương thích ngược nếu tham số thứ 2 là boolean (isReconnect)
-        if (typeof password === 'boolean') {
-            isReconnect = password;
-            password = this.password || '';
-        }
-
+    // Thiết bị phụ (Guest) tham gia phòng bằng Mã phòng + Mã PIN động
+    async joinRoom(rawCode, inputPin = '', isReconnect = false) {
         const cleanCode = (rawCode || this.roomCode || '').trim().toUpperCase();
         if (!cleanCode) {
-            this.onToast('Vui lòng nhập mã phòng thi hoặc quét mã QR!', 'warning');
+            this.onToast('Vui lòng nhập Mã phòng thi hoặc quét mã QR!', 'warning');
+            return;
+        }
+
+        // Nếu tự động kết nối lại lúc rớt mạng, tự tính lại mã PIN hiện hành của phòng đó
+        const pinToSend = isReconnect
+            ? computeTimeSyncedPin(cleanCode)
+            : String(inputPin || '').trim();
+
+        if (!pinToSend) {
+            this._emitStatus('disconnected', 'Vui lòng nhập mã PIN 4 số đang hiển thị trên thiết bị chính.');
             return;
         }
 
@@ -191,7 +257,6 @@ export class P2PSyncManager {
         this.isAuthenticated = false;
 
         this.roomCode = cleanCode;
-        this.password = (password !== undefined && password !== null) ? String(password).trim() : (this.password || '');
         this.role = 'guest';
         this._saveSession();
 
@@ -205,21 +270,20 @@ export class P2PSyncManager {
             this.hostConn = conn;
 
             conn.on('open', () => {
-                // Gửi yêu cầu xác thực mật khẩu ngay khi kênh mở (chưa truyền dữ liệu)
                 conn.send({
                     type: 'AUTH_REQUEST',
-                    password: this.password
+                    pin: pinToSend
                 });
             });
 
             conn.on('data', (data) => {
                 if (!data || typeof data !== 'object') return;
 
-                // Bị Host từ chối do sai mật khẩu / PIN
                 if (data.type === 'AUTH_REJECTED') {
-                    const errMsg = data.reason || 'Sai mật khẩu hoặc mã ghép đôi!';
+                    const errMsg = data.reason || 'Sai mã PIN hoặc mã PIN đã hết hạn!';
                     this.isManualDisconnect = true;
                     this.isAuthenticated = false;
+                    this._stopPinTicker();
                     this._clearReconnectTimer();
                     this._clearSession();
                     this._cleanupPeerOnly();
@@ -231,18 +295,17 @@ export class P2PSyncManager {
                     return;
                 }
 
-                // Được Host xác thực thành công
                 if (data.type === 'AUTH_ACCEPTED') {
                     this.reconnectAttempts = 0;
                     this.isAuthenticated = true;
                     this._clearReconnectTimer();
+                    this._startPinTicker();
                     this._emitStatus('connected');
                     this.onToast(
-                        isReconnect ? `Đã tự động kết nối lại phòng ${cleanCode}` : `Đã xác thực & đồng bộ với phòng ${cleanCode}`,
+                        isReconnect ? `Đã tự động kết nối lại phòng ${cleanCode}` : `Đã xác thực & đồng bộ phòng ${cleanCode}`,
                         'success'
                     );
 
-                    // Gửi dữ liệu cục bộ hiện tại lên Host để Host hợp nhất điểm chấm lúc rớt mạng (nếu có)
                     conn.send({
                         type: 'SYNC_STATE',
                         payload: this.getAppState(),
@@ -253,7 +316,6 @@ export class P2PSyncManager {
                     return;
                 }
 
-                // Chỉ nhận dữ liệu đồng bộ sau khi đã xác thực
                 if (data.type === 'SYNC_STATE' && this.isAuthenticated) {
                     this.onStateReceived(data.payload, {
                         senderRole: data.senderRole || 'host',
@@ -293,7 +355,6 @@ export class P2PSyncManager {
         });
     }
 
-    // Phát tán dữ liệu (chỉ gửi khi đã xác thực thành công)
     broadcast(statePayload, excludePeerId = null, isInitialSync = false) {
         if (!this.role || !this.isAuthenticated) return;
 
@@ -316,61 +377,61 @@ export class P2PSyncManager {
         }
     }
 
-    // Chủ động ngắt kết nối (dừng Auto-Reconnect)
     disconnect(notify = true) {
         this.isManualDisconnect = true;
         this.isAuthenticated = false;
         this.stopQrScanner();
+        this._stopPinTicker();
         this._clearReconnectTimer();
         this._cleanupPeerOnly();
         this._clearSession();
 
         this.role = null;
         this.roomCode = null;
-        this.password = '';
         this.reconnectAttempts = 0;
         this._emitStatus('disconnected');
         if (notify) this.onToast('Đã tắt đồng bộ trực tiếp.', 'info');
     }
 
-    // Tạo URL tham gia phòng (đính kèm mã phòng & mật khẩu để quét QR vào thẳng)
-    buildJoinUrl(roomCode, password = this.password) {
+    buildJoinUrl(roomCode, pin = null) {
+        const currentPin = pin || computeTimeSyncedPin(roomCode);
         const url = new URL(window.location.origin + window.location.pathname);
         url.searchParams.set('room', roomCode);
-        if (password && String(password).trim()) {
-            url.searchParams.set('pwd', String(password).trim());
-        }
+        url.searchParams.set('pin', currentPin);
         return url.toString();
     }
 
-    // Phân tích chuỗi dữ liệu đọc được từ Camera QR
     parseQrPayload(rawText) {
         const text = (rawText || '').trim();
         try {
             const parsedUrl = new URL(text);
             const room = parsedUrl.searchParams.get('room');
-            const pwd = parsedUrl.searchParams.get('pwd') || '';
+            const pin = parsedUrl.searchParams.get('pin') || parsedUrl.searchParams.get('pwd') || '';
             if (room) {
-                return { roomCode: room.trim().toUpperCase(), password: pwd.trim() };
+                return { roomCode: room.trim().toUpperCase(), pin: pin.trim() };
             }
         } catch (_) {
-            // Hỗ trợ định dạng chuỗi thuần: "THI-4829" hoặc "THI-4829|1234"
             const parts = text.split('|');
             if (parts[0]) {
                 return {
                     roomCode: parts[0].trim().toUpperCase(),
-                    password: (parts[1] || '').trim()
+                    pin: (parts[1] || '').trim()
                 };
             }
         }
         return null;
     }
 
-    // Mở Camera thiết bị phụ để quét mã QR phòng thi
+    // Chế độ 1: Mở luồng Camera trực tiếp (yêu cầu HTTPS hoặc localhost)
     async startQrScanner(elementId = 'p2p-qr-reader', onScanned = null) {
-        if (!window.Html5Qrcode) {
-            this.onToast('Trình duyệt chưa tải xong bộ quét mã QR. Vui lòng thử lại.', 'warning');
-            return false;
+        if (!window.isSecureContext) {
+            return { ok: false, reason: 'INSECURE_CONTEXT' };
+        }
+
+        try {
+            await this.ensureQrScannerLibrary();
+        } catch (_) {
+            return { ok: false, reason: 'LIB_LOAD_FAILED' };
         }
 
         await this.stopQrScanner();
@@ -384,25 +445,44 @@ export class P2PSyncManager {
                     await this.stopQrScanner();
                     const parsed = this.parseQrPayload(decodedText);
                     if (parsed && parsed.roomCode) {
-                        if (typeof onScanned === 'function') {
-                            onScanned(parsed);
-                        }
-                        this.joinRoom(parsed.roomCode, parsed.password, false);
+                        if (typeof onScanned === 'function') onScanned(parsed);
+                        this.joinRoom(parsed.roomCode, parsed.pin, false);
                     } else {
                         this.onToast('Mã QR không hợp lệ cho phòng thi!', 'error');
                     }
                 },
-                () => {} // Bỏ qua khung hình chưa nhận diện được mã
+                () => {}
             );
-            return true;
+            return { ok: true };
         } catch (err) {
             this.html5QrCode = null;
-            this.onToast('Không thể mở Camera. Hãy cấp quyền Camera cho trình duyệt.', 'error');
-            return false;
+            return { ok: false, reason: err?.name || 'CAMERA_DENIED' };
         }
     }
 
-    // Tắt Camera quét mã QR
+    // Chế độ 2: Chụp ảnh bằng Camera gốc của điện thoại (hoạt động cả trên HTTP nội bộ)
+    async scanQrFromImageFile(file, onScanned = null) {
+        if (!file) return;
+        try {
+            await this.ensureQrScannerLibrary();
+            await this.stopQrScanner();
+
+            const scanner = new window.Html5Qrcode('p2p-qr-file-temp');
+            const decodedText = await scanner.scanFile(file, true);
+            scanner.clear();
+
+            const parsed = this.parseQrPayload(decodedText);
+            if (parsed && parsed.roomCode) {
+                if (typeof onScanned === 'function') onScanned(parsed);
+                this.joinRoom(parsed.roomCode, parsed.pin, false);
+            } else {
+                this.onToast('Không tìm thấy mã phòng thi hợp lệ trong ảnh!', 'error');
+            }
+        } catch (_) {
+            this.onToast('Không đọc được mã QR từ ảnh. Hãy chụp rõ nét và chính diện mã QR.', 'error');
+        }
+    }
+
     async stopQrScanner() {
         if (this.html5QrCode) {
             try {
@@ -415,14 +495,13 @@ export class P2PSyncManager {
         }
     }
 
-    // Kiểm tra tự động kết nối qua URL (?room=...&pwd=...) hoặc khôi phục phiên trước khi tải lại trang
     checkAutoJoinFromUrl() {
         const params = new URLSearchParams(window.location.search);
         const roomParam = params.get('room');
-        const pwdParam = params.get('pwd') || '';
+        const pinParam = params.get('pin') || params.get('pwd') || '';
 
         if (roomParam) {
-            this.joinRoom(roomParam, pwdParam, false);
+            this.joinRoom(roomParam, pinParam, false);
             window.history.replaceState({}, document.title, window.location.pathname);
             return;
         }
@@ -430,9 +509,9 @@ export class P2PSyncManager {
         const saved = this._loadSession();
         if (saved && saved.roomCode && saved.role) {
             if (saved.role === 'host') {
-                this.startHost(saved.roomCode, saved.password || '', true);
+                this.startHost(saved.roomCode, true);
             } else if (saved.role === 'guest') {
-                this.joinRoom(saved.roomCode, saved.password || '', true);
+                this.joinRoom(saved.roomCode, '', true);
             }
         }
     }
@@ -445,9 +524,9 @@ export class P2PSyncManager {
         this.reconnectTimer = setTimeout(() => {
             if (this.isManualDisconnect) return;
             if (this.role === 'host') {
-                this.startHost(this.roomCode, this.password, true);
+                this.startHost(this.roomCode, true);
             } else if (this.role === 'guest') {
-                this.joinRoom(this.roomCode, this.password, true);
+                this.joinRoom(this.roomCode, '', true);
             }
         }, delayMs);
     }
@@ -476,15 +555,17 @@ export class P2PSyncManager {
     }
 
     _emitStatus(status, authError = '') {
+        const pinInfo = this.getCurrentPinInfo();
         this.onStatusChange({
             status,
             role: this.role,
             roomCode: this.roomCode,
-            password: this.password,
+            dynamicPin: pinInfo.pin,
+            pinSecondsLeft: pinInfo.secondsLeft,
             authError,
             peerCount: this.connections.length,
             reconnectAttempts: this.reconnectAttempts,
-            joinUrl: (this.role === 'host' && this.roomCode) ? this.buildJoinUrl(this.roomCode, this.password) : null
+            joinUrl: (this.role === 'host' && this.roomCode) ? this.buildJoinUrl(this.roomCode, pinInfo.pin) : null
         });
     }
 
@@ -493,7 +574,6 @@ export class P2PSyncManager {
             localStorage.setItem('SGS_P2P_SESSION', JSON.stringify({
                 role: this.role,
                 roomCode: this.roomCode,
-                password: this.password,
                 expiresAt: Date.now() + 3 * 60 * 60 * 1000
             }));
         } catch (_) {}
