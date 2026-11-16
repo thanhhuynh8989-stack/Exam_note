@@ -1,1329 +1,820 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-    <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#0f172a">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Giám Sát Thi">
-    <link rel="apple-touch-icon" href="./icon-192.png">
-    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sổ Giám Sát Thi & Chấm Điểm Chi Tiết</title>
-    <!-- Tailwind CSS CDN -->
+
+    <!-- Tailwind CSS & Alpine.js & SheetJS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
-    
-    <!-- SheetJS (xlsx) cho Excel Import/Export -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- QRCode.js cho tính năng quét mã tham gia phòng nhanh -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <!-- PeerJS cho Đồng bộ P2P & QRCode.js cho mã QR vào phòng -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <!-- Thư viện mở Camera quét mã QR -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-    
-    <!-- Custom Stylesheet -->
-    <link rel="stylesheet" href="style.css">
 
-    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+        });
+    </script>
 
-    <!-- 1. Gọi app.js (chuẩn module) LÊN TRƯỚC -->
-    <script type="module" src="./app.js"></script>
-    <!-- 2. Gọi Alpine.js SAU -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="./css/style.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
 </head>
+<body class="bg-slate-50 text-slate-900 font-sans antialiased selection:bg-indigo-100 selection:text-indigo-900" x-data="examApp()" x-init="initApp()">
 
-<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col antialiased overflow-x-hidden" x-data="examApp" x-init="initApp()">
+    <!-- ======================== PHẦN GIAO DIỆN WEB (ẨN KHI IN) ======================== -->
+    <div class="no-print min-h-screen flex flex-col">
 
-    <!-- MÀN HÌNH CẢNH BÁO KHI MỞ BẰNG TRÌNH DUYỆT TRONG ZALO -->
-    <div x-show="isZaloBrowser" x-cloak class="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-5">
-        <div class="bg-white rounded-2xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-slate-200">
-            <div class="w-14 h-14 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto text-2xl">
-                <i class="fa-solid fa-compass"></i>
+        <!-- Cảnh báo trình duyệt Zalo -->
+        <div x-show="isZaloBrowser" x-cloak class="bg-amber-600 text-white px-4 py-3 text-sm font-medium flex flex-col sm:flex-row items-center justify-between gap-2 shadow-md">
+            <div class="flex items-center gap-2 text-center sm:text-left">
+                <i data-lucide="alert-triangle" class="w-5 h-5 shrink-0"></i>
+                <span>Trình duyệt Zalo hạn chế tính năng Xuất file Excel/In ấn và Đồng bộ trực tiếp. Vui lòng mở bằng <strong>Chrome</strong> hoặc <strong>Safari</strong>.</span>
             </div>
-            
-            <div class="space-y-1.5">
-                <h2 class="text-lg font-extrabold text-slate-900">Vui Lòng Mở Bằng Trình Duyệt</h2>
-                <p class="text-xs text-slate-600 leading-relaxed">
-                    Trình duyệt tích hợp của <span class="font-bold text-blue-600">Zalo</span> sẽ tự ngắt kết nối đồng bộ khi tắt màn hình và chặn tải file Excel điểm.
-                </p>
-            </div>
-
-            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-left space-y-2 text-xs text-slate-700">
-                <div class="font-bold text-slate-900">Cách chuyển nhanh sang Chrome / Safari:</div>
-                <p>1. Bấm biểu tượng <span class="font-bold bg-slate-200 px-1.5 py-0.5 rounded">•••</span> ở góc trên bên phải màn hình Zalo.</p>
-                <p>2. Chọn <span class="font-bold text-blue-700">"Mở bằng trình duyệt"</span> (Open in Safari / Chrome).</p>
-            </div>
-
-            <div class="pt-1 space-y-2">
-                <button @click="copyCurrentUrl()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-2">
-                    <i class="fa-regular fa-copy"></i>
-                    <span>Sao Chép Đường Dẫn Phòng Thi</span>
-                </button>
-                <button @click="isZaloBrowser = false" class="w-full py-2 text-[11px] font-semibold text-slate-400 hover:text-slate-600">
-                    Bỏ qua và tiếp tục dùng tạm
-                </button>
-            </div>
+            <button @click="copyCurrentUrl()" class="shrink-0 bg-white text-amber-800 hover:bg-amber-50 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition cursor-pointer">
+                Sao chép link
+            </button>
         </div>
-    </div>
-    
-    <!-- TOAST NOTIFICATION CONTAINER -->
-    <div class="fixed top-4 right-4 z-50 space-y-2 pointer-events-none max-w-sm w-full px-4">
-        <template x-for="t in toasts" :key="t.id">
-            <div x-show="t.visible" 
-                 x-transition:enter="transition ease-out duration-300 transform translate-x-4 opacity-0"
-                 x-transition:enter-end="transform translate-x-0 opacity-100"
-                 x-transition:leave="transition ease-in duration-200 transform translate-x-4 opacity-0"
-                 class="pointer-events-auto p-4 rounded-xl shadow-xl flex items-center space-x-3 text-sm font-semibold border"
-                 :class="{
-                    'bg-emerald-600 text-white border-emerald-500': t.type === 'success',
-                    'bg-rose-600 text-white border-rose-500': t.type === 'error',
-                    'bg-amber-500 text-white border-amber-400': t.type === 'warning',
-                    'bg-slate-900 text-white border-slate-700': t.type === 'info'
-                 }">
-                <i class="fa-solid text-lg" :class="{
-                    'fa-circle-check': t.type === 'success',
-                    'fa-circle-exclamation': t.type === 'error' || t.type === 'warning',
-                    'fa-circle-info': t.type === 'info'
-                }"></i>
-                <span class="flex-grow" x-text="t.message"></span>
-                <button @click="removeToast(t.id)" class="text-white/80 hover:text-white">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
-        </template>
-    </div>
 
-    <!-- CUSTOM CONFIRMATION MODAL -->
-    <div x-show="confirmModal.show" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 text-center space-y-4" @click.away="confirmModal.show = false">
-            <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto text-xl">
-                <i class="fa-solid fa-triangle-exclamation"></i>
-            </div>
-            <div>
-                <h3 class="text-base font-bold text-slate-900" x-text="confirmModal.title || 'Xác nhận thao tác'"></h3>
-                <p class="text-xs text-slate-500 mt-1" x-text="confirmModal.message"></p>
-            </div>
-            <div class="flex space-x-2 pt-2">
-                <button @click="confirmModal.show = false" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all">Hủy Bỏ</button>
-                <button @click="executeConfirmAction()" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs rounded-xl transition-all shadow-md">Đồng Ý</button>
-            </div>
-        </div>
-    </div>
-   
-    <!-- MODAL: P2P LIVE SYNC (PHÊ DUYỆT TRỰC TIẾP & QUẢN LÝ DANH SÁCH GUEST) -->
-    <div x-show="syncState.showModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-100 space-y-4 max-h-[90vh] overflow-y-auto" 
-             @click.away="closeSyncModal()">
-            
-            <!-- Header Modal -->
-            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                <div class="flex items-center space-x-2">
-                    <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
-                        <i class="fa-solid fa-tower-broadcast"></i>
+        <!-- HEADER / NAVIGATION BAR -->
+        <header class="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+                
+                <!-- Brand & Active Subject -->
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm shadow-indigo-200 shrink-0">
+                        <i data-lucide="clipboard-check" class="w-5 h-5"></i>
                     </div>
-                    <div>
-                        <h3 class="text-base font-bold text-slate-900">Đồng Bộ Trực Tiếp (Live Sync)</h3>
-                        <p class="text-[11px] text-slate-500">Phê duyệt thiết bị phụ &amp; đồng bộ điểm thi tức thì</p>
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2">
+                            <h1 class="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight truncate">Sổ Giám Sát Thi</h1>
+                            <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100" x-text="config.subjectCode || 'KTHP'"></span>
+                        </div>
+                        <p class="text-xs text-slate-500 font-medium truncate">
+                            <span x-text="config.subjectName"></span> • Phòng <strong class="text-slate-700" x-text="config.roomName || '---'"></strong>
+                        </p>
                     </div>
                 </div>
-                <button @click="closeSyncModal()" class="text-slate-400 hover:text-slate-600 p-1">
-                    <i class="fa-solid fa-xmark text-lg"></i>
-                </button>
-            </div>
 
-            <!-- TRẠNG THÁI CHƯA KẾT NỐI -->
-            <template x-if="syncState.status === 'disconnected'">
-                <div class="space-y-4">
-                    
-                    <!-- OPTION 1: THIẾT BỊ CHÍNH (HOST) -->
-                    <div class="p-4 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2.5">
-                        <div class="flex items-center justify-between">
-                            <span class="text-xs font-bold text-blue-900"><i class="fa-solid fa-display mr-1.5"></i>Thiết Bị Chính (Phòng Thi)</span>
-                            <span class="text-[10px] font-bold px-2 py-0.5 bg-blue-600 text-white rounded-full">HOST</span>
-                        </div>
-                        <p class="text-[11px] text-slate-600">Tạo phòng thi và phê duyệt trực tiếp từng thiết bị phụ xin kết nối.</p>
-                        <button @click="startLiveSyncHost()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-2">
-                            <i class="fa-solid fa-wifi"></i>
-                            <span>Bật Cổng Chia Sẻ Trực Tiếp</span>
-                        </button>
-                    </div>
-
-                    <div class="relative flex py-0.5 items-center">
-                        <div class="flex-grow border-t border-slate-200"></div>
-                        <span class="flex-shrink mx-3 text-[11px] font-bold text-slate-400 uppercase">Hoặc</span>
-                        <div class="flex-grow border-t border-slate-200"></div>
-                    </div>
-
-                    <!-- OPTION 2: THIẾT BỊ PHỤ (GUEST) -->
-                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                        <div class="flex items-center justify-between">
-                            <span class="text-xs font-bold text-slate-800"><i class="fa-solid fa-mobile-screen-button mr-1.5"></i>Thiết Bị Phụ (Giám Thị 2)</span>
-                            <span class="text-[10px] font-bold px-2 py-0.5 bg-slate-200 text-slate-700 rounded-full">GUEST</span>
-                        </div>
-
-                        <!-- Cụm 2 nút Quét QR -->
-                        <div x-show="!syncState.isScanningQr" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <button @click="startQrScanner()" 
-                                    type="button"
-                                    class="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-1.5">
-                                <i class="fa-solid fa-qrcode"></i>
-                                <span>Quét QR Trực Tiếp</span>
-                            </button>
-
-                            <label class="py-2.5 px-3 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-1.5 cursor-pointer">
-                                <i class="fa-solid fa-camera"></i>
-                                <span>Chụp Ảnh Mã QR</span>
-                                <input type="file" accept="image/*" capture="environment" class="hidden" @change="handleQrImageCapture($event)">
-                            </label>
-                        </div>
-
-                        <!-- Khung Camera quét QR -->
-                        <div x-show="syncState.isScanningQr" class="space-y-2">
-                            <div id="p2p-qr-reader" class="w-full overflow-hidden rounded-xl border-2 border-emerald-500 bg-black"></div>
-                            <button @click="stopQrScanner()" type="button" 
-                                    class="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-xs rounded-xl transition-all">
-                                <i class="fa-solid fa-camera-slash mr-1"></i> Tắt Camera Quét QR
-                            </button>
-                        </div>
-                        <div id="p2p-qr-file-temp" class="hidden"></div>
-
-                        <div class="space-y-2">
-                            <div>
-                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Mã Phòng Thi</label>
-                                <input type="text" x-model="syncState.inputCode" 
-                                       @input="syncState.authError = ''"
-                                       @keydown.enter="joinLiveSyncRoom()"
-                                       placeholder="Quét QR hoặc nhập mã phòng (VD: THI-4829)" 
-                                       class="w-full text-xs font-mono font-bold uppercase p-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
-                            </div>
-
-                            <div>
-                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Tên Thiết Bị / Giám Thị (Tùy chọn)</label>
-                                <input type="text" x-model="syncState.deviceName" 
-                                       @keydown.enter="joinLiveSyncRoom()"
-                                       placeholder="VD: Giám thị 2 - iPhone" 
-                                       class="w-full text-xs p-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
-                            </div>
-                        </div>
-
-                        <div x-show="syncState.authError" class="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-[11px] font-bold text-rose-600 flex items-start space-x-1.5">
-                            <i class="fa-solid fa-circle-exclamation shrink-0 mt-0.5"></i>
-                            <span x-text="syncState.authError"></span>
-                        </div>
-
-                        <button @click="joinLiveSyncRoom()" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-1.5">
-                            <i class="fa-solid fa-paper-plane"></i>
-                            <span>Gửi Yêu Cầu Tham Gia</span>
-                        </button>
-                    </div>
-                </div>
-            </template>
-
-            <!-- TRẠNG THÁI ĐANG KẾT NỐI MÁY CHỦ -->
-            <template x-if="syncState.status === 'connecting'">
-                <div class="py-8 text-center space-y-4">
-                    <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-600"></i>
-                    <p class="text-xs font-bold text-slate-700" x-text="`Đang kết nối tới phòng ${syncState.roomCode}...`"></p>
-                    <button @click="disconnectLiveSync()" type="button"
-                            class="px-4 py-2 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 rounded-xl text-xs font-bold transition-all">
-                        Hủy Kết Nối
+                <!-- Desktop Navigation Tabs -->
+                <nav class="hidden md:flex items-center bg-slate-100/90 p-1 rounded-xl border border-slate-200/70">
+                    <button @click="activeTab = 'timer'" :class="activeTab === 'timer' ? 'bg-white text-indigo-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900 font-medium'" class="px-3.5 py-1.5 rounded-lg text-sm flex items-center gap-2 transition cursor-pointer">
+                        <i data-lucide="timer" class="w-4 h-4"></i>
+                        <span>Đồng hồ & Nhật ký</span>
                     </button>
-                </div>
-            </template>
-
-            <!-- TRẠNG THÁI GUEST ĐANG CHỜ HOST BẤM ĐỒNG Ý -->
-            <template x-if="syncState.status === 'waiting_approval'">
-                <div class="p-5 bg-amber-50 border border-amber-200 rounded-xl text-center space-y-4">
-                    <div class="w-12 h-12 mx-auto rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
-                        <i class="fa-solid fa-user-clock text-xl animate-pulse"></i>
-                    </div>
-                    <div class="space-y-1">
-                        <p class="text-xs font-extrabold text-amber-900" x-text="`Đã gửi yêu cầu vào phòng ${syncState.roomCode}`"></p>
-                        <p class="text-[11px] text-amber-800">Vui lòng bấm <strong>Đồng ý</strong> trên màn hình Thiết Bị Chính (Host) để bắt đầu đồng bộ.</p>
-                    </div>
-                    <button @click="disconnectLiveSync()" type="button"
-                            class="w-full py-2 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 font-bold text-xs rounded-xl transition-all">
-                        Hủy Yêu Cầu
+                    <button @click="activeTab = 'picker'" :class="activeTab === 'picker' ? 'bg-white text-indigo-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900 font-medium'" class="px-3.5 py-1.5 rounded-lg text-sm flex items-center gap-2 transition cursor-pointer">
+                        <i data-lucide="shuffle" class="w-4 h-4"></i>
+                        <span>Bốc thăm đề</span>
                     </button>
-                </div>
-            </template>
-
-            <!-- TRẠNG THÁI MẤT MẠNG & ĐANG TỰ ĐỘNG KẾT NỐI LẠI -->
-            <template x-if="syncState.status === 'reconnecting'">
-                <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl text-center space-y-3">
-                    <i class="fa-solid fa-rotate fa-spin text-2xl text-amber-600"></i>
-                    <div>
-                        <p class="text-xs font-bold text-amber-900" x-text="`Mất kết nối mạng — Đang tự nối lại phòng ${syncState.roomCode}...`"></p>
-                        <p class="text-[11px] text-amber-700 mt-1">Bạn vẫn có thể tiếp tục điểm danh và chấm điểm bình thường. Dữ liệu sẽ tự động gộp ngay khi có mạng trở lại.</p>
-                    </div>
-                    <button @click="disconnectLiveSync()" class="w-full py-2 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 font-bold text-xs rounded-lg transition-all">
-                        Hủy Tự Động Kết Nối Lại
+                    <button @click="activeTab = 'students'" :class="activeTab === 'students' ? 'bg-white text-indigo-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900 font-medium'" class="px-3.5 py-1.5 rounded-lg text-sm flex items-center gap-2 transition cursor-pointer">
+                        <i data-lucide="users" class="w-4 h-4"></i>
+                        <span>Thí sinh & Điểm</span>
+                        <span class="px-1.5 py-0.2 text-[11px] rounded-full bg-indigo-100 text-indigo-700 font-bold" x-text="students.length"></span>
                     </button>
-                </div>
-            </template>
-
-            <!-- TRẠNG THÁI ĐÃ KẾT NỐI -->
-            <template x-if="syncState.status === 'connected'">
-                <div class="space-y-4">
-                    <!-- HỘP DUYỆT YÊU CẦU MỚI (CHỈ HIỆN TRÊN HOST KHI CÓ GUEST XIN VÀO) -->
-                    <div x-show="syncState.role === 'host' && syncState.pendingRequests.length > 0" 
-                         class="p-3.5 bg-amber-50 border-2 border-amber-400 rounded-xl space-y-2.5 shadow-sm">
-                        <div class="flex items-center space-x-1.5 text-xs font-extrabold text-amber-900">
-                            <i class="fa-solid fa-bell fa-shake text-amber-600"></i>
-                            <span>Yêu cầu kết nối mới (<span x-text="syncState.pendingRequests.length"></span>)</span>
-                        </div>
-                        <div class="space-y-2">
-                            <template x-for="req in syncState.pendingRequests" :key="req.deviceId">
-                                <div class="p-2.5 bg-white rounded-xl border border-amber-200 flex items-center justify-between gap-2">
-                                    <div class="min-w-0">
-                                        <div class="text-xs font-bold text-slate-900 truncate" x-text="req.deviceName"></div>
-                                        <div class="text-[10px] font-mono text-slate-400" x-text="req.deviceId"></div>
-                                    </div>
-                                    <div class="flex items-center space-x-1.5 shrink-0">
-                                        <button @click="approveSyncGuest(req.deviceId)" type="button"
-                                                class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-lg transition-all">
-                                            Đồng ý
-                                        </button>
-                                        <button @click="rejectSyncGuest(req.deviceId)" type="button"
-                                                class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-[11px] rounded-lg transition-all">
-                                            Từ chối
-                                        </button>
-                                    </div>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-
-                    <!-- THÔNG TIN PHÒNG & MÃ QR -->
-                    <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-center space-y-3">
-                        <div class="inline-flex items-center space-x-1.5 px-3 py-1 bg-emerald-600 text-white text-[11px] font-bold rounded-full">
-                            <span class="w-2 h-2 bg-white rounded-full animate-ping"></span>
-                            <span x-text="syncState.role === 'host' ? 'ĐANG PHÁT TRỰC TIẾP (HOST)' : 'ĐÃ KẾT NỐI ĐỒNG BỘ (GUEST)'"></span>
-                        </div>
-
-                        <div>
-                            <div class="text-[10px] font-bold text-slate-500 uppercase">Mã Phòng Thi</div>
-                            <div class="flex items-center justify-center space-x-2 mt-0.5">
-                                <span class="text-2xl font-black font-mono text-slate-900 tracking-wider" x-text="syncState.roomCode"></span>
-                                <button @click="copySyncCode()" title="Sao chép mã phòng" class="p-1.5 bg-white hover:bg-blue-50 text-slate-500 hover:text-blue-600 border border-slate-200 rounded-lg text-xs">
-                                    <i class="fa-regular fa-copy"></i>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div x-show="syncState.role === 'host'" class="flex flex-col items-center pt-1">
-                            <div id="p2p-qrcode-box" class="p-2.5 bg-white rounded-xl border border-slate-200 shadow-sm"></div>
-                            <p class="text-[11px] text-slate-500 mt-2">Quét mã QR hoặc nhập mã phòng trên thiết bị phụ để gửi yêu cầu kết nối</p>
-                        </div>
-                    </div>
-
-                    <!-- DANH SÁCH CÁC MÁY GUEST HIỆN CÓ (CHỈ HIỆN TRÊN HOST) -->
-                    <div x-show="syncState.role === 'host'" class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
-                        <div class="flex items-center justify-between">
-                            <span class="text-xs font-bold text-slate-800">
-                                <i class="fa-solid fa-mobile-screen-button mr-1.5 text-blue-600"></i>Danh sách thiết bị phụ (<span x-text="syncState.guestList.length"></span>)
-                            </span>
-                            <span class="text-[11px] font-bold text-emerald-600" x-text="`${syncState.peerCount} đang trực tuyến`"></span>
-                        </div>
-
-                        <template x-if="syncState.guestList.length === 0">
-                            <p class="text-[11px] text-slate-400 text-center py-2">Chưa có thiết bị phụ nào được cấp quyền.</p>
-                        </template>
-
-                        <div class="space-y-1.5">
-                            <template x-for="guest in syncState.guestList" :key="guest.deviceId">
-                                <div class="p-2.5 bg-white rounded-xl border border-slate-200 flex items-center justify-between gap-2">
-                                    <div class="flex items-center space-x-2 min-w-0">
-                                        <span class="w-2.5 h-2.5 rounded-full shrink-0"
-                                              :class="guest.isOnline ? 'bg-emerald-500' : 'bg-slate-300'"></span>
-                                        <div class="min-w-0">
-                                            <div class="text-xs font-bold text-slate-800 truncate" x-text="guest.deviceName"></div>
-                                            <div class="text-[10px] text-slate-400">
-                                                <span x-text="guest.isOnline ? 'Đang trực tuyến' : 'Ngoại tuyến (Tự nối lại khi có mạng)'"></span>
-                                                · <span class="font-mono" x-text="guest.deviceId"></span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <button @click="revokeSyncGuest(guest.deviceId)" type="button"
-                                            title="Gỡ quyền truy cập thiết bị này"
-                                            class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg text-[10px] font-bold shrink-0 transition-all">
-                                        Gỡ quyền
-                                    </button>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-
-                    <button @click="disconnectLiveSync()" class="w-full py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-xs rounded-xl transition-all">
-                        <i class="fa-solid fa-plug-circle-xmark mr-1.5"></i> Ngắt Kết Nối Đồng Bộ
+                    <button @click="activeTab = 'config'" :class="activeTab === 'config' ? 'bg-white text-indigo-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900 font-medium'" class="px-3.5 py-1.5 rounded-lg text-sm flex items-center gap-2 transition cursor-pointer">
+                        <i data-lucide="settings" class="w-4 h-4"></i>
+                        <span>Cấu hình</span>
                     </button>
-                </div>
-            </template>
-        </div>
-    </div>
+                </nav>
 
-    <!-- MODAL: QUẢN LÝ LƯU TRỮ SUẤT THI (TRÌNH DUYỆT & FILE .JSON) -->
-    <div x-show="sessionState.showModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 space-y-5 max-h-[90vh] flex flex-col" @click.away="sessionState.showModal = false">
-            
-            <!-- Header Modal -->
-            <div class="flex justify-between items-center border-b border-slate-100 pb-3 shrink-0">
-                <div class="flex items-center space-x-2.5">
-                    <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-base">
-                        <i class="fa-solid fa-folder-tree"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-base font-bold text-slate-900">Quản Lý & Lưu Trữ Suất Thi</h3>
-                        <p class="text-[11px] text-slate-500">Lưu trên trình duyệt có khóa mật khẩu hoặc xuất file .JSON vào thư mục exam</p>
-                    </div>
-                </div>
-                <button @click="sessionState.showModal = false" class="text-slate-400 hover:text-slate-600 p-1">
-                    <i class="fa-solid fa-xmark text-lg"></i>
-                </button>
-            </div>
+                <!-- Right Action Controls -->
+                <div class="flex items-center gap-2 shrink-0">
+                    <!-- Nút Quản lý Suất thi -->
+                    <button @click="openSessionModal()" class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 border border-slate-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer" title="Lưu trữ & Quản lý nhiều suất thi">
+                        <i data-lucide="folder-archive" class="w-4 h-4 text-indigo-600"></i>
+                        <span class="hidden lg:inline">Suất thi</span>
+                    </button>
 
-            <!-- KHỐI 1: LƯU SUẤT THI HIỆN TẠI -->
-            <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 shrink-0">
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                    <div class="text-xs font-bold text-slate-800">
-                        <i class="fa-solid fa-floppy-disk text-blue-600 mr-1.5"></i>
-                        Suất hiện tại: <span class="text-blue-700" x-text="`${config.subjectCode || ''} ${config.subClass || ''}`.trim() || 'Chưa đặt lớp'"></span>
-                        <span class="text-slate-500 font-normal" x-text="`(${config.time || 'Chưa đặt giờ'} • ${students.length} SV)`"></span>
-                    </div>
-                </div>
-
-                <div class="flex flex-col sm:flex-row gap-2">
-                    <div class="relative flex-grow">
-                        <i class="fa-solid fa-key absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                        <input type="password" 
-                               x-model="sessionState.newPassword" 
-                               placeholder="Đặt mật khẩu bảo vệ (để trống nếu không khóa)..." 
-                               class="w-full pl-8 pr-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
-                    </div>
-
-                    <div class="flex flex-wrap gap-2 shrink-0">
-                        <button @click="saveCurrentSession(false)" 
-                                class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center space-x-1.5">
-                            <i class="fa-solid fa-plus"></i>
-                            <span>Lưu Suất Mới</span>
-                        </button>
-
-                        <button x-show="sessionState.currentSessionId" 
-                                @click="saveCurrentSession(true)" 
-                                class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center space-x-1.5">
-                            <i class="fa-solid fa-arrows-rotate"></i>
-                            <span>Cập Nhật</span>
-                        </button>
-
-                        <button @click="exportCurrentSessionJson()" 
-                                title="Tải file .json về thư mục exam trên máy tính"
-                                class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center space-x-1.5">
-                            <i class="fa-solid fa-file-export"></i>
-                            <span>Xuất .JSON</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- HỘP XÁC THỰC MẬT KHẨU (HIỆN KHI MỞ / XÓA / NHẬP SUẤT THI CÓ KHÓA) -->
-            <template x-if="sessionState.authPrompt.show">
-                <div class="p-4 bg-amber-50 border-2 border-amber-300 rounded-xl space-y-2.5 shrink-0">
-                    <div class="flex items-center justify-between">
-                        <span class="text-xs font-bold text-amber-900">
-                            <i class="fa-solid fa-lock text-amber-600 mr-1.5"></i>
-                            <span x-text="sessionState.authPrompt.action === 'delete' ? 'Nhập mật khẩu để XÓA suất thi:' : 'Nhập mật khẩu để MỞ suất thi:'"></span>
-                            <span class="underline" x-text="sessionState.authPrompt.session?.className"></span>
+                    <!-- Nút Đồng bộ P2P -->
+                    <button @click="syncState.showModal = true"
+                            :class="syncState.status === 'connected' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : (syncState.status === 'waiting_approval' || syncState.status === 'reconnecting' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100')"
+                            class="px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition cursor-pointer relative"
+                            title="Đồng bộ dữ liệu thời gian thực giữa các thiết bị">
+                        <span class="relative flex h-2 w-2">
+                            <span x-show="syncState.status === 'connected'" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span :class="syncState.status === 'connected' ? 'bg-emerald-500' : (syncState.status === 'waiting_approval' || syncState.status === 'reconnecting' ? 'bg-amber-500' : 'bg-indigo-500')" class="relative inline-flex rounded-full h-2 w-2"></span>
                         </span>
-                        <button @click="sessionState.authPrompt.show = false" class="text-xs text-slate-500 hover:text-slate-800 font-semibold">Hủy</button>
-                    </div>
+                        <span class="hidden sm:inline" x-text="syncState.status === 'connected' ? `Đồng bộ (${syncState.peerCount})` : 'Đồng bộ'"></span>
+                        <span x-show="syncState.role === 'host' && syncState.pendingRequests.length > 0"
+                              x-text="syncState.pendingRequests.length"
+                              class="ml-0.5 px-1.5 py-0.2 bg-rose-600 text-white rounded-full text-[10px] font-extrabold animate-bounce"></span>
+                    </button>
 
-                    <div class="flex space-x-2">
-                        <input type="password" 
-                               x-model="sessionState.authPrompt.inputPassword" 
-                               @keydown.enter="verifySessionPassword()"
-                               placeholder="Nhập mật khẩu truy cập..." 
-                               class="flex-grow text-xs p-2.5 bg-white border border-amber-300 rounded-xl focus:ring-2 focus:ring-amber-500">
-                        <button @click="verifySessionPassword()" 
-                                class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all">
-                            Xác Nhận
-                        </button>
-                    </div>
-                    <p x-show="sessionState.authPrompt.errorMsg" class="text-[11px] font-bold text-rose-600" x-text="sessionState.authPrompt.errorMsg"></p>
+                    <!-- Toàn màn hình -->
+                    <button @click="toggleFullscreen()" class="hidden sm:flex p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer" title="Toàn màn hình">
+                        <i data-lucide="maximize" class="w-4 h-4"></i>
+                    </button>
+
+                    <!-- Mobile Menu Toggle -->
+                    <button @click="mobileMenuOpen = !mobileMenuOpen" class="md:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 transition cursor-pointer">
+                        <i data-lucide="menu" class="w-5 h-5"></i>
+                    </button>
                 </div>
-            </template>
+            </div>
 
-            <!-- KHỐI 2: DANH SÁCH CÁC SUẤT THI ĐÃ LƯU -->
-            <div class="flex-grow overflow-hidden flex flex-col space-y-2">
-                <div class="flex items-center justify-between">
-                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-600">
-                        Danh Sách Suất Thi Đã Lưu (<span x-text="sessionState.savedSessions.length">0</span>)
-                    </h4>
+            <!-- Mobile Navigation Drawer -->
+            <div x-show="mobileMenuOpen" x-collapse x-cloak class="md:hidden border-t border-slate-200 bg-white px-4 py-3 space-y-1.5 shadow-lg">
+                <button @click="activeTab = 'timer'; mobileMenuOpen = false" :class="activeTab === 'timer' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-600'" class="w-full px-3 py-2.5 rounded-xl text-sm flex items-center gap-2.5 text-left">
+                    <i data-lucide="timer" class="w-4 h-4"></i> Đồng hồ & Nhật ký giám sát
+                </button>
+                <button @click="activeTab = 'picker'; mobileMenuOpen = false" :class="activeTab === 'picker' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-600'" class="w-full px-3 py-2.5 rounded-xl text-sm flex items-center gap-2.5 text-left">
+                    <i data-lucide="shuffle" class="w-4 h-4"></i> Bốc thăm đề thi ngẫu nhiên
+                </button>
+                <button @click="activeTab = 'students'; mobileMenuOpen = false" :class="activeTab === 'students' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-600'" class="w-full px-3 py-2.5 rounded-xl text-sm flex items-center justify-between text-left">
+                    <span class="flex items-center gap-2.5"><i data-lucide="users" class="w-4 h-4"></i> Danh sách Thí sinh & Chấm điểm</span>
+                    <span class="px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-700 font-bold" x-text="students.length"></span>
+                </button>
+                <button @click="activeTab = 'config'; mobileMenuOpen = false" :class="activeTab === 'config' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-600'" class="w-full px-3 py-2.5 rounded-xl text-sm flex items-center gap-2.5 text-left">
+                    <i data-lucide="settings" class="w-4 h-4"></i> Cấu hình & Phần thi
+                </button>
+            </div>
+        </header>
 
-                    <!-- Nút mở file .JSON từ thư mục exam trên máy tính -->
-                    <label class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] rounded-lg border border-slate-200 transition-all flex items-center space-x-1.5 cursor-pointer">
-                        <i class="fa-solid fa-file-import text-blue-600"></i>
-                        <span>Mở File .JSON Từ Máy</span>
-                        <input type="file" accept=".json" class="hidden" @change="importSessionJson($event)">
+        <!-- MAIN WORKSPACE -->
+        <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+            <!-- ==================== TAB 1: ĐỒNG HỒ & NHẬT KÝ ==================== -->
+            <section x-show="activeTab === 'timer'" x-transition.opacity class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                <!-- Cột trái: Đồng hồ đếm ngược lớn -->
+                <div class="lg:col-span-7 bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8 flex flex-col justify-between">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold"
+                              :class="timer.isRunning ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600 border border-slate-200'">
+                            <span class="w-2 h-2 rounded-full" :class="timer.isRunning ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'"></span>
+                            <span x-text="getTimerStatusText()"></span>
+                        </span>
+                        <div class="text-xs font-mono font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">
+                            Giờ hệ thống: <span class="text-slate-800 font-bold" x-text="currentSystemTime || '--:--:--'"></span>
+                        </div>
+                    </div>
+
+                    <!-- Mặt số đếm ngược -->
+                    <div class="my-8 text-center">
+                        <div class="font-mono text-6xl sm:text-8xl font-extrabold tracking-tight tabular-nums select-none transition-colors"
+                             :class="timer.timeLeft <= 300 ? 'text-rose-600' : 'text-slate-900'"
+                             x-text="formatTime(timer.timeLeft)">
+                        </div>
+                        <p class="text-xs sm:text-sm text-slate-500 mt-2 font-medium">
+                            Thời lượng quy định: <strong class="text-slate-700" x-text="config.durationMinutes"></strong> phút
+                        </p>
+
+                        <!-- Thanh tiến trình -->
+                        <div class="w-full max-w-md mx-auto h-2.5 bg-slate-100 rounded-full overflow-hidden mt-5 border border-slate-200/60">
+                            <div class="h-full transition-all duration-500 rounded-full" :class="getProgressColor()" :style="`width: ${getRemainingPercentage()}%`"></div>
+                        </div>
+                    </div>
+
+                    <!-- Nút điều khiển chính -->
+                    <div class="space-y-4">
+                        <div class="flex flex-wrap items-center justify-center gap-3">
+                            <button @click="toggleTimer()"
+                                    :class="timer.isRunning ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'"
+                                    class="px-7 py-3.5 rounded-2xl text-white font-bold text-base shadow-lg flex items-center gap-2.5 transition cursor-pointer">
+                                <i :data-lucide="timer.isRunning ? 'pause' : 'play'" class="w-5 h-5"></i>
+                                <span x-text="timer.isRunning ? 'Tạm dừng' : 'Bắt đầu tính giờ'"></span>
+                            </button>
+
+                            <button @click="resetTimer()" class="px-5 py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm flex items-center gap-2 transition cursor-pointer">
+                                <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                                <span>Đặt lại</span>
+                            </button>
+                        </div>
+
+                        <!-- Tinh chỉnh nhanh thời gian -->
+                        <div class="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-center gap-2">
+                            <span class="text-xs font-semibold text-slate-400 mr-1">Điều chỉnh nhanh:</span>
+                            <button @click="adjustMinutes(-5)" class="px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-bold text-slate-600 cursor-pointer">-5p</button>
+                            <button @click="adjustMinutes(-1)" class="px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-bold text-slate-600 cursor-pointer">-1p</button>
+                            <button @click="addExtraMinutes(1)" class="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-xs font-bold text-emerald-700 cursor-pointer">+1p bù giờ</button>
+                            <button @click="addExtraMinutes(5)" class="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-xs font-bold text-emerald-700 cursor-pointer">+5p bù giờ</button>
+                        </div>
+
+                        <!-- Chọn nhanh mốc thời lượng -->
+                        <div class="flex flex-wrap items-center justify-center gap-1.5">
+                            <span class="text-xs font-semibold text-slate-400 mr-1">Mốc chuẩn:</span>
+                            <template x-for="m in [15, 30, 45, 60, 90, 120]" :key="m">
+                                <button @click="setQuickDuration(m)"
+                                        :class="config.durationMinutes == m ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'"
+                                        class="px-2.5 py-1 rounded-lg border text-xs font-bold transition cursor-pointer"
+                                        x-text="m + 'p'"></button>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cột phải: Nhật ký phòng thi -->
+                <div class="lg:col-span-5 bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col h-[520px]">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                                <i data-lucide="scroll-text" class="w-4 h-4"></i>
+                            </div>
+                            <h2 class="text-base font-bold text-slate-900">Nhật ký phòng thi</h2>
+                        </div>
+                        <span class="text-xs font-semibold text-slate-400" x-text="logs.length + ' ghi nhận'"></span>
+                    </div>
+
+                    <!-- Form thêm nhật ký -->
+                    <form @submit.prevent="addLog()" class="flex gap-2 mb-4">
+                        <input type="text" x-model="newLogText" placeholder="Ghi nhận sự cố, SV xin ra ngoài, bù giờ..."
+                               class="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500">
+                        <button type="submit" class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold shrink-0 transition cursor-pointer">
+                            Ghi
+                        </button>
+                    </form>
+
+                    <!-- Danh sách log -->
+                    <div class="flex-1 overflow-y-auto space-y-2.5 pr-1">
+                        <template x-if="logs.length === 0">
+                            <div class="h-full flex flex-col items-center justify-center text-center text-slate-400 py-8">
+                                <i data-lucide="file-clock" class="w-10 h-10 mb-2 opacity-40"></i>
+                                <p class="text-sm font-medium">Chưa có ghi nhận nào trong ca thi</p>
+                            </div>
+                        </template>
+                        <template x-for="(log, index) in logs" :key="index">
+                            <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/70 flex items-start gap-3">
+                                <span class="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded shrink-0 mt-0.5" x-text="log.time"></span>
+                                <p class="text-sm text-slate-700 leading-snug break-words" x-text="log.text"></p>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==================== TAB 2: BỐC THĂM ĐỀ NGẪU NHIÊN ==================== -->
+            <section x-show="activeTab === 'picker'" x-transition.opacity x-cloak class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                <!-- Cột trái: Danh sách mã đề -->
+                <div class="lg:col-span-5 bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <i data-lucide="list-ordered" class="w-4 h-4 text-indigo-600"></i>
+                            Ngân hàng mã đề / tiểu ban
+                        </h2>
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700" x-text="getExamListArray().length + ' đề'"></span>
+                    </div>
+
+                    <p class="text-xs text-slate-500">Nhập mỗi mã đề hoặc chủ đề thi trên một dòng riêng biệt:</p>
+
+                    <textarea x-model="picker.rawExamList" @input="saveToLocalStorage()" rows="10"
+                              class="w-full p-3.5 rounded-2xl border border-slate-200 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                              placeholder="Đề 1&#10;Đề 2&#10;Đề 3..."></textarea>
+
+                    <label class="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80 cursor-pointer">
+                        <input type="checkbox" x-model="picker.allowDuplicate" @change="saveToLocalStorage()" class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+                        <span class="text-xs font-semibold text-slate-700">Cho phép bốc trùng đề giữa các thí sinh</span>
                     </label>
                 </div>
 
-                <div class="flex-grow overflow-y-auto space-y-2 pr-1">
-                    <template x-if="sessionState.savedSessions.length === 0">
-                        <div class="py-10 text-center border-2 border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
-                            Chưa có suất thi nào được lưu trên trình duyệt này.
-                        </div>
-                    </template>
+                <!-- Cột phải: Vòng quay & Gán đề cho thí sinh -->
+                <div class="lg:col-span-7 bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8 flex flex-col justify-between">
+                    <div class="space-y-4">
+                        <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <i data-lucide="sparkles" class="w-4 h-4 text-amber-500"></i>
+                            Quay số & Phân đề thi
+                        </h2>
 
-                    <template x-for="ses in sessionState.savedSessions" :key="ses.id">
-                        <div class="p-3.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                             :class="sessionState.currentSessionId === ses.id ? 'bg-blue-50/60 border-blue-300' : 'bg-white border-slate-200 hover:border-slate-300'">
-                            
-                            <div class="space-y-1">
-                                <div class="flex items-center space-x-2">
-                                    <span class="px-2 py-0.5 rounded text-[11px] font-black font-mono bg-slate-900 text-white" x-text="ses.className"></span>
-                                    <span class="text-xs font-bold text-slate-800" x-text="ses.subjectName"></span>
-                                    <span x-show="ses.hasPassword" title="Được bảo vệ bằng mật khẩu" class="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-bold">
-                                        <i class="fa-solid fa-lock mr-0.5"></i> Khóa
-                                    </span>
-                                    <span x-show="sessionState.currentSessionId === ses.id" class="px-1.5 py-0.5 bg-blue-600 text-white rounded text-[10px] font-bold">
-                                        Đang mở
-                                    </span>
-                                </div>
-                                <div class="text-[11px] text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5">
-                                    <span><i class="fa-regular fa-clock text-amber-600 mr-1"></i><strong class="text-slate-700" x-text="ses.examTime"></strong></span>
-                                    <span><i class="fa-solid fa-users text-slate-400 mr-1"></i><span x-text="ses.studentCount + ' SV'"></span></span>
-                                    <span class="text-slate-400" x-text="'Lưu lúc: ' + ses.savedAt"></span>
-                                </div>
-                            </div>
-
-                            <div class="flex items-center space-x-1.5 shrink-0">
-                                <button @click="triggerSessionAction(ses, 'load')" 
-                                        class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition-all">
-                                    <i class="fa-solid fa-folder-open mr-1"></i> Mở
-                                </button>
-                                <button @click="exportSpecificSessionJson(ses)" 
-                                        title="Tải file .json về máy"
-                                        class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg border border-slate-200 transition-all">
-                                    <i class="fa-solid fa-download"></i>
-                                </button>
-                                <button @click="triggerSessionAction(ses, 'delete')" 
-                                        title="Xóa suất thi"
-                                        class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold text-xs rounded-lg border border-rose-200 transition-all">
-                                    <i class="fa-solid fa-trash-can"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- MODAL: GRADING DETAIL FOR A STUDENT (Có kiểm tra điểm tối đa & cảnh báo) -->
-    <div x-show="showGradingModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-        <template x-if="showGradingModal && activeStudent">
-            <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4" @click.away="showGradingModal = false">
-                <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                    <div>
-                        <h3 class="text-base font-bold text-slate-900">Chấm Điểm Chi Tiết Thí Sinh</h3>
-                        <p class="text-xs text-slate-500" x-text="`${activeStudent.mssv || ''} - ${activeStudent.hoLot || ''} ${activeStudent.ten || ''}`"></p>
-                    </div>
-                    <button @click="showGradingModal = false; activeStudent = null" class="text-slate-400 hover:text-slate-600">
-                        <i class="fa-solid fa-xmark text-lg"></i>
-                    </button>
-                </div>
-    
-                <div class="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-                    <template x-for="(sec, sIdx) in config.sections" :key="sIdx">
-                        <div class="p-3 rounded-xl border transition-all space-y-1"
-                             :class="(activeStudent.scores[sIdx] > sec.maxScore) ? 'bg-rose-50/60 border-rose-300' : 'bg-slate-50 border-slate-200'">
-                            
-                            <div class="flex justify-between text-xs font-bold"
-                                 :class="(activeStudent.scores[sIdx] > sec.maxScore) ? 'text-rose-700' : 'text-slate-700'">
-                                <span x-text="sec.title"></span>
-                                <span x-text="`(Tối đa: ${sec.maxScore}đ)`"></span>
-                            </div>
-                            
-                            <p class="text-[11px] text-slate-400" x-text="sec.note"></p>
-                            
-                            <div class="flex items-center space-x-2 pt-1">
-                                <input type="number" step="0.25" min="0" :max="sec.maxScore" 
-                                       x-model.number="activeStudent.scores[sIdx]" 
-                                       @input="calculateTotalScore(activeStudent)"
-                                       class="w-full text-xs p-2 bg-white border rounded-lg font-bold focus:ring-2 transition-all"
-                                       :class="(activeStudent.scores[sIdx] > sec.maxScore) 
-                                           ? 'border-rose-500 text-rose-600 focus:ring-rose-500' 
-                                           : 'border-slate-300 text-slate-800 focus:ring-blue-500'">
-                                <span class="text-xs font-bold text-slate-600">điểm</span>
-                            </div>
-    
-                            <!-- Thông báo lỗi khi điểm vượt quá tối đa -->
-                            <template x-if="activeStudent.scores[sIdx] > sec.maxScore">
-                                <p class="text-[11px] font-bold text-rose-600 flex items-center pt-1">
-                                    <i class="fa-solid fa-circle-exclamation mr-1"></i>
-                                    <span x-text="`Điểm nhập (${activeStudent.scores[sIdx]}đ) vượt quá điểm tối đa (${sec.maxScore}đ)!`"></span>
-                                </p>
-                            </template>
-                        </div>
-                    </template>
-                </div>
-    
-                <!-- Tổng điểm & cảnh báo tổng thể -->
-                <div class="p-3 rounded-xl border flex justify-between items-center"
-                     :class="hasGradingError() ? 'bg-rose-100 border-rose-300 text-rose-900' : 'bg-blue-50 border-blue-200 text-blue-900'">
-                    <span class="text-xs font-bold">Tổng điểm bài thi:</span>
-                    <span class="text-base font-black font-mono" 
-                          :class="hasGradingError() ? 'text-rose-600' : 'text-blue-700'"
-                          x-text="(activeStudent.totalScore || 0) + ' / ' + getTotalPoints() + ' điểm'"></span>
-                </div>
-    
-                <div class="flex justify-end space-x-2 pt-2">
-                    <button @click="showGradingModal = false; activeStudent = null" class="px-4 py-2 bg-slate-100 text-slate-600 text-xs font-semibold rounded-xl hover:bg-slate-200">
-                        Hủy
-                    </button>
-                    <button @click="saveGradingModal()" 
-                            :disabled="hasGradingError()"
-                            :class="hasGradingError() ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'"
-                            class="px-4 py-2 text-xs font-semibold rounded-xl transition-all">
-                        Hoàn Tất & Lưu
-                    </button>
-                </div>
-            </div>
-        </template>
-    </div>
-
-    <!-- DÒNG 1: HEADER CỐ ĐỊNH TIÊU ĐỀ & ICON TRẠNG THÁI ĐỒNG BỘ -->
-    <header class="bg-slate-900 text-white sticky top-0 z-40 shadow-md border-b border-slate-800">
-        <div class="max-w-7xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-2">
-            <!-- Logo + Tiêu đề cố định -->
-            <div class="flex items-center space-x-2.5 min-w-0">
-                <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-sm">
-                    <i class="fa-solid fa-clipboard-check text-sm"></i>
-                </div>
-                <h1 class="text-sm sm:text-base font-extrabold tracking-tight text-white truncate">
-                    Sổ tay Giám sát &amp; Chấm thi
-                </h1>
-            </div>
-
-            <!-- Icon trạng thái đồng bộ duy nhất ở góc phải -->
-            <button @click="syncState.showModal = true"
-                    title="Trạng thái Đồng bộ & Chia sẻ thiết bị"
-                    class="relative flex items-center justify-center w-9 h-9 rounded-xl border transition-all shrink-0"
-                    :class="{
-                        'bg-emerald-500/15 border-emerald-500/40 text-emerald-400': syncState.status === 'connected',
-                        'bg-amber-500/15 border-amber-500/40 text-amber-400': syncState.status === 'reconnecting',
-                        'bg-blue-500/15 border-blue-500/40 text-blue-400': syncState.status === 'connecting',
-                        'bg-slate-800 border-slate-700 text-slate-400 hover:text-white': syncState.status === 'disconnected'
-                    }">
-                <i class="fa-solid fa-tower-broadcast text-sm" :class="{ 'fa-spin': syncState.status === 'connecting' }"></i>
-                <!-- Chấm tròn báo trạng thái -->
-                <span class="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-slate-900"
-                      :class="{
-                          'bg-emerald-500 animate-pulse': syncState.status === 'connected',
-                          'bg-amber-500 animate-ping': syncState.status === 'reconnecting',
-                          'bg-blue-500': syncState.status === 'connecting',
-                          'bg-slate-500': syncState.status === 'disconnected'
-                      }"></span>
-            </button>
-        </div>
-    </header>
-
-    <!-- DÒNG 2: THANH MENU HAMBURGER (MOBILE) & THANH TAB ĐẦY ĐỦ 6 CHỨC NĂNG -->
-    <nav class="bg-white border-b border-slate-200 sticky top-14 z-30 shadow-sm" @click.away="mobileMenuOpen = false">
-        <div class="max-w-7xl mx-auto px-3 sm:px-6">
-            
-            <!-- Thanh điều khiển trên Điện thoại (Hiện mục đang mở + Nút Hamburger) -->
-            <div class="flex md:hidden items-center justify-between h-12">
-                <div class="flex items-center space-x-2 text-xs font-extrabold text-blue-700">
-                    <i class="fa-solid" :class="{
-                        'fa-stopwatch': activeTab === 'timer',
-                        'fa-sliders': activeTab === 'config',
-                        'fa-shuffle': activeTab === 'picker',
-                        'fa-users-viewfinder': activeTab === 'students'
-                    }"></i>
-                    <span x-text="{
-                        timer: 'Đếm ngược',
-                        config: 'Cài đặt Suất thi',
-                        picker: 'Bốc thăm Đề thi',
-                        students: 'Chấm thi & Bảng điểm'
-                    }[activeTab] || 'Bảng điều khiển'"></span>
-                </div>
-
-                <button @click="mobileMenuOpen = !mobileMenuOpen"
-                        class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border border-slate-200 transition-all">
-                    <i class="fa-solid text-sm" :class="mobileMenuOpen ? 'fa-xmark' : 'fa-bars'"></i>
-                    <span>Menu</span>
-                </button>
-            </div>
-
-            <!-- Danh sách xổ xuống khi bấm nút Hamburger trên Điện thoại -->
-            <div x-show="mobileMenuOpen" x-cloak class="md:hidden pb-3 pt-1 border-t border-slate-100 space-y-1">
-                <!-- 1. Đếm ngược -->
-                <button @click="activeTab = 'timer'; mobileMenuOpen = false"
-                        class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all"
-                        :class="activeTab === 'timer' ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'">
-                    <i class="fa-solid fa-stopwatch w-4 text-center"></i>
-                    <span>Đếm ngược</span>
-                </button>
-
-                <!-- 2. Cài đặt Suất thi -->
-                <button @click="activeTab = 'config'; mobileMenuOpen = false"
-                        class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all"
-                        :class="activeTab === 'config' ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'">
-                    <i class="fa-solid fa-sliders w-4 text-center"></i>
-                    <span>Cài đặt Suất thi</span>
-                </button>
-
-                <!-- 3. Bốc thăm Đề thi -->
-                <button @click="activeTab = 'picker'; mobileMenuOpen = false"
-                        class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all"
-                        :class="activeTab === 'picker' ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'">
-                    <div class="flex items-center space-x-3">
-                        <i class="fa-solid fa-shuffle w-4 text-center"></i>
-                        <span>Bốc thăm Đề thi</span>
-                    </div>
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-600" x-text="getExamListArray().length"></span>
-                </button>
-
-                <!-- 4. Chấm thi & Bảng điểm -->
-                <button @click="activeTab = 'students'; mobileMenuOpen = false"
-                        class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all"
-                        :class="activeTab === 'students' ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'">
-                    <div class="flex items-center space-x-3">
-                        <i class="fa-solid fa-users-viewfinder w-4 text-center"></i>
-                        <span>Chấm thi &amp; Bảng điểm</span>
-                    </div>
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-700" x-text="students.length"></span>
-                </button>
-
-                <div class="my-1 border-t border-slate-100"></div>
-
-                <!-- 5. Đồng bộ & Chia sẻ thiết bị -->
-                <button @click="syncState.showModal = true; mobileMenuOpen = false"
-                        class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all">
-                    <div class="flex items-center space-x-3">
-                        <i class="fa-solid fa-tower-broadcast w-4 text-center text-blue-600"></i>
-                        <span>Đồng bộ &amp; Chia sẻ thiết bị</span>
-                    </div>
-                    <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full"
-                          :class="syncState.status === 'connected' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'"
-                          x-text="syncState.status === 'connected' ? 'Đang nối' : 'Chưa nối'"></span>
-                </button>
-
-                <!-- 6. Lưu/Mở suất thi -->
-                <button @click="openSessionModal(); mobileMenuOpen = false"
-                        class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all">
-                    <div class="flex items-center space-x-3">
-                        <i class="fa-solid fa-folder-open w-4 text-center text-amber-500"></i>
-                        <span>Lưu/Mở suất thi</span>
-                    </div>
-                    <span x-show="sessionState.savedSessions.length > 0"
-                          class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800"
-                          x-text="sessionState.savedSessions.length"></span>
-                </button>
-            </div>
-
-            <!-- Thanh ngang đầy đủ 6 mục trên Màn hình Máy tính / Tablet lớn -->
-            <div class="hidden md:flex items-center justify-between h-12 gap-1">
-                <div class="flex items-center space-x-1">
-                    <button @click="activeTab = 'timer'"
-                            class="px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5"
-                            :class="activeTab === 'timer' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'">
-                        <i class="fa-solid fa-stopwatch"></i>
-                        <span>Đếm ngược</span>
-                    </button>
-
-                    <button @click="activeTab = 'config'"
-                            class="px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5"
-                            :class="activeTab === 'config' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'">
-                        <i class="fa-solid fa-sliders"></i>
-                        <span>Cài đặt Suất thi</span>
-                    </button>
-
-                    <button @click="activeTab = 'picker'"
-                            class="px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5"
-                            :class="activeTab === 'picker' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'">
-                        <i class="fa-solid fa-shuffle"></i>
-                        <span>Bốc thăm Đề thi</span>
-                        <span class="px-1.5 py-0.5 text-[10px] rounded-full bg-slate-100 text-slate-600" x-text="getExamListArray().length"></span>
-                    </button>
-
-                    <button @click="activeTab = 'students'"
-                            class="px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5"
-                            :class="activeTab === 'students' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'">
-                        <i class="fa-solid fa-users-viewfinder"></i>
-                        <span>Chấm thi &amp; Bảng điểm</span>
-                        <span class="px-1.5 py-0.5 text-[10px] rounded-full bg-blue-100 text-blue-700" x-text="students.length"></span>
-                    </button>
-                </div>
-
-                <div class="flex items-center space-x-2">
-                    <button @click="syncState.showModal = true"
-                            class="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 flex items-center space-x-1.5 transition-all">
-                        <i class="fa-solid fa-tower-broadcast text-blue-600"></i>
-                        <span>Đồng bộ &amp; Chia sẻ</span>
-                    </button>
-
-                    <button @click="openSessionModal()"
-                            class="px-3 py-1.5 rounded-lg text-xs font-bold border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 flex items-center space-x-1.5 transition-all">
-                        <i class="fa-solid fa-folder-open text-amber-600"></i>
-                        <span>Lưu/Mở suất thi</span>
-                        <span x-show="sessionState.savedSessions.length > 0"
-                              class="px-1.5 py-0.5 text-[10px] rounded-full bg-amber-500 text-white"
-                              x-text="sessionState.savedSessions.length"></span>
-                    </button>
-                </div>
-            </div>
-
-        </div>
-    </nav>
-
-    <!-- MAIN BODY CONTAINER -->
-    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-
-        <!-- TAB 1: COUNTDOWN TIMER -->
-        <div x-show="activeTab === 'timer'" x-cloak>
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="lg:col-span-2 space-y-6">
-                    <div class="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-sm text-center relative overflow-hidden">
-                        
-                        <!-- Thanh trạng thái & Nút toàn màn hình -->
-                        <div class="flex items-center justify-between mb-4">
-                            <span class="text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full"
-                                  :class="timer.isRunning ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'">
-                                <i class="fa-solid fa-circle text-[8px] mr-1" :class="timer.isRunning ? 'text-emerald-500 animate-pulse' : 'text-slate-400'"></i>
-                                <span x-text="timer.isRunning ? 'Đang Đếm Ngược Làm Bài' : 'Đang Tạm Dừng / Chờ Thi'"></span>
-                            </span>
-                            <button @click="toggleFullscreen()" title="Toàn màn hình" class="text-slate-400 hover:text-slate-700 p-2 rounded-lg transition-colors">
-                                <i class="fa-solid fa-expand text-lg"></i>
-                            </button>
-                        </div>
-        
-                        <!-- KHU VỰC HIỂN THỊ ĐỒNG HỒ KÈM NÚT TĂNG GIẢM GIỜ & PHÚT -->
-                        <div class="py-4 sm:py-6 flex flex-col items-center justify-center">
-                            <div class="flex items-center justify-center space-x-3 sm:space-x-6 my-2">
-                                
-                                <!-- Cột điều chỉnh GIỜ (+1h / -1h) -->
-                                <div class="flex flex-col items-center space-y-1">
-                                    <button @click="adjustHours(1)" title="Tăng 1 giờ" class="px-2.5 py-1.5 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 rounded-lg text-xs font-bold transition-all border border-slate-200 shadow-sm active:scale-95 flex items-center space-x-1">
-                                        <i class="fa-solid fa-chevron-up text-[10px]"></i>
-                                        <span>+1h</span>
-                                    </button>
-                                    <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Giờ</span>
-                                    <button @click="adjustHours(-1)" title="Giảm 1 giờ" class="px-2.5 py-1.5 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-600 rounded-lg text-xs font-bold transition-all border border-slate-200 shadow-sm active:scale-95 flex items-center space-x-1">
-                                        <i class="fa-solid fa-chevron-down text-[10px]"></i>
-                                        <span>-1h</span>
-                                    </button>
-                                </div>
-        
-                                <!-- Màn hình hiển thị số thời gian -->
-                                <div class="font-mono text-5xl sm:text-7xl md:text-8xl font-black tracking-tight text-slate-800 select-none px-2"
-                                     :class="{'timer-warning text-rose-600': timer.timeLeft <= 300 && timer.timeLeft > 0}"
-                                     x-text="formatTime(timer.timeLeft)">
-                                    00:00
-                                </div>
-        
-                                <!-- Cột điều chỉnh PHÚT (+1p / -1p) -->
-                                <div class="flex flex-col items-center space-y-1">
-                                    <button @click="adjustMinutes(1)" title="Tăng 1 phút" class="px-2.5 py-1.5 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 rounded-lg text-xs font-bold transition-all border border-slate-200 shadow-sm active:scale-95 flex items-center space-x-1">
-                                        <i class="fa-solid fa-chevron-up text-[10px]"></i>
-                                        <span>+1p</span>
-                                    </button>
-                                    <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Phút</span>
-                                    <button @click="adjustMinutes(-1)" title="Giảm 1 phút" class="px-2.5 py-1.5 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-600 rounded-lg text-xs font-bold transition-all border border-slate-200 shadow-sm active:scale-95 flex items-center space-x-1">
-                                        <i class="fa-solid fa-chevron-down text-[10px]"></i>
-                                        <span>-1p</span>
-                                    </button>
-                                </div>
-        
-                            </div>
-        
-                            <p class="text-xs sm:text-sm font-medium text-slate-500 mt-2">
-                                Tổng thời gian làm bài: <span class="text-slate-800 font-bold" x-text="config.durationMinutes + ' phút'"></span>
-                            </p>
-                        </div>
-        
-                        <!-- Thanh tiến trình thời gian -->
-                        <div class="w-full bg-slate-100 rounded-full h-4 overflow-hidden mb-6 p-0.5 border border-slate-200">
-                            <div class="h-full rounded-full transition-all duration-1000 ease-linear" :class="getProgressColor()" :style="`width: ${getRemainingPercentage()}%`"></div>
-                        </div>
-        
-                        <!-- CỤM NÚT ĐIỀU KHIỂN & ĐẶT NHANH -->
-                        <div class="space-y-4">
-                            <!-- Hàng 1: Bắt đầu / Tạm dừng, Đặt lại & Tăng giảm phút ngắt quãng -->
-                            <div class="flex flex-wrap items-center justify-center gap-2">
-                                <button @click="toggleTimer()" 
-                                        class="px-6 py-3 rounded-xl font-bold text-white shadow-md transition-all flex items-center space-x-2 text-sm sm:text-base active:scale-95"
-                                        :class="timer.isRunning ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'">
-                                    <i class="fa-solid" :class="timer.isRunning ? 'fa-pause' : 'fa-play'"></i>
-                                    <span x-text="timer.isRunning ? 'TẠM DỪNG' : 'BẮT ĐẦU THI'"></span>
-                                </button>
-                                
-                                <button @click="resetTimer()" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs sm:text-sm rounded-xl transition-all border border-slate-200">
-                                    <i class="fa-solid fa-rotate-left mr-1"></i> Đặt Lại
-                                </button>
-        
-                                <div class="flex items-center space-x-1 border border-slate-200 p-1 rounded-xl bg-slate-50">
-                                    <button @click="addExtraMinutes(-10)" title="Giảm 10 phút" class="px-2.5 py-2 bg-white hover:bg-rose-50 text-rose-600 font-bold rounded-lg text-xs border border-slate-200 transition-all active:scale-95">-10p</button>
-                                    <button @click="addExtraMinutes(-5)" title="Giảm 5 phút" class="px-2.5 py-2 bg-white hover:bg-rose-50 text-rose-600 font-bold rounded-lg text-xs border border-slate-200 transition-all active:scale-95">-5p</button>
-                                    <button @click="addExtraMinutes(5)" title="Tăng 5 phút" class="px-2.5 py-2 bg-white hover:bg-emerald-50 text-emerald-600 font-bold rounded-lg text-xs border border-slate-200 transition-all active:scale-95">+5p</button>
-                                    <button @click="addExtraMinutes(10)" title="Tăng 10 phút" class="px-2.5 py-2 bg-white hover:bg-emerald-50 text-emerald-600 font-bold rounded-lg text-xs border border-slate-200 transition-all active:scale-95">+10p</button>
-                                </div>
-                            </div>
-        
-                            <!-- Hàng 2: Đặt nhanh mốc thời gian thi chuẩn -->
-                            <div class="flex items-center justify-center space-x-1.5 pt-2 border-t border-slate-100">
-                                <span class="text-[11px] font-semibold text-slate-400 mr-1">Đặt nhanh:</span>
-                                <template x-for="mins in [15, 30, 45, 60, 90]" :key="mins">
-                                    <button @click="setQuickDuration(mins)"
-                                            class="px-2.5 py-1 rounded-lg text-xs font-bold border transition-all active:scale-95"
-                                            :class="config.durationMinutes === mins 
-                                                ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
-                                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'">
-                                        <span x-text="mins + 'p'"></span>
-                                    </button>
-                                </template>
-                            </div>
-                        </div>
-        
-                    </div>
-                </div>
-        
-                <!-- CỘT PHẢI: THÔNG TIN BUỔI THI & NHẬT KÝ PHÒNG THI -->
-                <div class="space-y-6">
-                    <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
-                        <h3 class="font-bold text-slate-800 text-xs sm:text-sm uppercase tracking-wide border-b border-slate-100 pb-2 mb-3 flex items-center justify-between">
-                            <span><i class="fa-solid fa-circle-info text-blue-500 mr-2"></i> Thông Tin Buổi Thi</span>
-                            <button @click="activeTab = 'config'" class="text-xs text-blue-600 hover:underline">Sửa</button>
-                        </h3>
-                        <dl class="space-y-2 text-xs sm:text-sm">
-                            <div class="flex justify-between py-1 border-b border-slate-50"><dt class="text-slate-500">Môn Thi:</dt><dd class="font-semibold text-slate-800" x-text="config.subjectName"></dd></div>
-                            <div class="flex justify-between py-1 border-b border-slate-50"><dt class="text-slate-500">Phòng Thi:</dt><dd class="font-medium text-slate-700" x-text="config.roomName"></dd></div>
-                            <div class="flex justify-between items-start gap-2 py-1 border-b border-slate-50">
-                                <dt class="text-slate-500 shrink-0">Giờ Thi:</dt>
-                                <dd class="font-bold text-amber-600 text-right" x-text="config.time || '.... giờ ..... phút, ngày ..../....../..........'"></dd>
-                            </div>
-                            <div class="flex justify-between py-1"><dt class="text-slate-500">Thang Điểm:</dt><dd class="font-semibold text-blue-600" x-text="getTotalPoints() + ' điểm'"></dd></div>
-                        </dl>
-                    </div>
-        
-                    <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col h-[280px]">
-                        <h3 class="font-bold text-slate-800 text-xs sm:text-sm uppercase tracking-wide border-b border-slate-100 pb-2 mb-3">Nhật Ký Phòng Thi</h3>
-                        <div class="flex space-x-2 mb-3">
-                            <input type="text" x-model="newLogText" @keydown.enter="addLog()" placeholder="Nhập ghi chú..." class="flex-grow px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none">
-                            <button @click="addLog()" class="px-3 py-1.5 bg-slate-800 text-white rounded-lg text-xs font-semibold">Thêm</button>
-                        </div>
-                        <div class="flex-grow overflow-y-auto space-y-2 text-xs">
-                            <template x-for="(log, idx) in logs" :key="idx">
-                                <div class="bg-slate-50 p-2 rounded-lg border border-slate-200">
-                                    <div class="font-mono text-[10px] text-slate-400" x-text="log.time"></div>
-                                    <p class="text-slate-700 font-medium" x-text="log.text"></p>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB 2: EXAM PICKER -->
-        <div x-show="activeTab === 'picker'" x-cloak>
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="lg:col-span-2 space-y-6">
-                    <div class="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-sm text-center">
-                        <h2 class="text-lg sm:text-xl font-bold text-slate-800 mb-1">Bốc Thăm Mã Đề Thi Ngẫu Nhiên</h2>
-                        <div class="relative bg-slate-900 border-4 border-slate-800 rounded-2xl p-8 my-6 text-white flex flex-col items-center justify-center min-h-[200px]">
-                            <div class="text-4xl sm:text-6xl font-black text-amber-400 font-mono" x-text="picker.currentDisplay || 'CHƯA BỐC'">--</div>
-                        </div>
-                        <div class="space-y-4 max-w-lg mx-auto">
-                            <!-- Dropdown chọn đối tượng -->
-                            <select x-model="picker.targetStudentId" 
-                                    @change="handleTargetStudentChange()"
-                                    class="w-full text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-amber-500">
-                                <option value="">-- Bốc tự do không gán --</option>
-                                <option value="ALL" class="font-bold text-blue-700">🎲 Gán ngẫu nhiên cho TOÀN BỘ sinh viên</option>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Đối tượng nhận đề</label>
+                            <select x-model="picker.targetStudentId" @change="handleTargetStudentChange()"
+                                    class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500">
+                                <option value="">-- Chỉ quay thử ngẫu nhiên (Không gán) --</option>
+                                <option value="ALL" class="font-bold text-indigo-700">⚡ Phát ngẫu nhiên cho TOÀN BỘ thí sinh có mặt</option>
                                 <template x-for="st in students" :key="st.id">
-                                    <option :value="st.id" x-text="`${st.mssv} - ${st.hoLot} ${st.ten}`"></option>
+                                    <option :value="st.id" x-text="`${st.mssv} - ${st.hoLot} ${st.ten} ${st.assignedExam ? '(Đã có: ' + st.assignedExam + ')' : ''}`"></option>
                                 </template>
                             </select>
-        
-                            <!-- Checkbox Cho phép trùng đề -->
-                            <div class="flex items-center justify-center space-x-2 pt-1 text-xs font-semibold text-slate-700">
-                                <input type="checkbox" id="allowDuplicateCheck" x-model="picker.allowDuplicate" class="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500">
-                                <label for="allowDuplicateCheck" class="cursor-pointer select-none">
-                                    Cho phép trùng mã đề thi giữa các sinh viên
-                                </label>
+                        </div>
+                    </div>
+
+                    <!-- Khung hiển thị kết quả bốc thăm -->
+                    <div class="my-8 p-8 rounded-3xl bg-gradient-to-br from-indigo-50 via-white to-slate-50 border-2 border-dashed border-indigo-200 text-center">
+                        <span class="text-xs font-bold uppercase tracking-widest text-indigo-500">Kết quả bốc thăm</span>
+                        <div class="mt-3 text-3xl sm:text-5xl font-extrabold text-slate-900 tracking-tight min-h-[3.5rem] flex items-center justify-center"
+                             x-text="picker.currentDisplay || 'SẴN SÀNG'">
+                        </div>
+                    </div>
+
+                    <button @click="startRandomDraw()" :disabled="picker.isSpinning"
+                            class="w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-extrabold text-base shadow-lg shadow-indigo-200 flex items-center justify-center gap-2.5 transition cursor-pointer">
+                        <i data-lucide="dices" class="w-5 h-5" :class="picker.isSpinning ? 'animate-spin' : ''"></i>
+                        <span x-text="picker.isSpinning ? 'Đang quay ngẫu nhiên...' : (picker.targetStudentId === 'ALL' ? 'Phát đề ngẫu nhiên hàng loạt' : 'Bắt đầu bốc thăm')"></span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- ==================== TAB 3: THÍ SINH & CHẤM ĐIỂM ==================== -->
+            <section x-show="activeTab === 'students'" x-transition.opacity x-cloak class="space-y-5">
+                
+                <!-- Thanh công cụ quản lý danh sách -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button @click="showAddStudentModal = true" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer">
+                            <i data-lucide="user-plus" class="w-4 h-4"></i>
+                            <span>Thêm thí sinh</span>
+                        </button>
+
+                        <label class="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
+                            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                            <span>Nhập Excel DS</span>
+                            <input type="file" accept=".xlsx,.xls,.csv" @change="handleStudentExcelUpload($event)" class="hidden">
+                        </label>
+
+                        <button @click="downloadStudentTemplate()" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
+                            <i data-lucide="download" class="w-4 h-4"></i>
+                            <span>File mẫu</span>
+                        </button>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button @click="exportToExcelXLSX()" class="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer">
+                            <i data-lucide="sheet" class="w-4 h-4"></i>
+                            <span>Xuất Bảng Điểm Excel</span>
+                        </button>
+
+                        <button @click="printExamSheet()" class="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer">
+                            <i data-lucide="printer" class="w-4 h-4"></i>
+                            <span>In Phiếu A4</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Bảng danh sách thí sinh -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
+                                    <th class="py-3.5 px-4 w-12 text-center">STT</th>
+                                    <th class="py-3.5 px-4">MSSV</th>
+                                    <th class="py-3.5 px-4">Họ và tên</th>
+                                    <th class="py-3.5 px-4">Lớp</th>
+                                    <th class="py-3.5 px-4 text-center">Điểm danh</th>
+                                    <th class="py-3.5 px-4 text-center">Mã đề</th>
+                                    <template x-for="(sec, sIdx) in config.sections" :key="sIdx">
+                                        <th class="py-3.5 px-3 text-center">
+                                            <div x-text="sec.title || ('Phần ' + (sIdx+1))"></div>
+                                            <div class="text-[10px] font-semibold text-indigo-600" x-text="`(${sec.maxScore}đ)`"></div>
+                                        </th>
+                                    </template>
+                                    <th class="py-3.5 px-4 text-center">Tổng điểm</th>
+                                    <th class="py-3.5 px-4 text-right">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 text-sm">
+                                <template x-if="students.length === 0">
+                                    <tr>
+                                        <td :colspan="8 + config.sections.length" class="py-12 text-center text-slate-400">
+                                            <i data-lucide="users" class="w-10 h-10 mx-auto mb-2 opacity-40"></i>
+                                            <p class="font-medium">Chưa có dữ liệu thí sinh. Hãy thêm thủ công hoặc nhập từ file Excel.</p>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <template x-for="(st, idx) in students" :key="st.id">
+                                    <tr class="hover:bg-slate-50/80 transition" :class="!st.isPresent ? 'bg-rose-50/40' : ''">
+                                        <td class="py-3 px-4 text-center font-mono text-xs text-slate-500" x-text="idx + 1"></td>
+                                        <td class="py-3 px-4 font-mono font-bold text-slate-800" x-text="st.mssv"></td>
+                                        <td class="py-3 px-4 font-semibold text-slate-900" x-text="`${st.hoLot} ${st.ten}`"></td>
+                                        <td class="py-3 px-4 text-slate-600 text-xs font-medium" x-text="st.className || '---'"></td>
+                                        <td class="py-3 px-4 text-center">
+                                            <button @click="toggleAttendance(st)"
+                                                    :class="st.isPresent ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-100 text-rose-700 border-rose-200'"
+                                                    class="px-2.5 py-1 rounded-lg border text-xs font-bold transition cursor-pointer"
+                                                    x-text="st.isPresent ? 'Có mặt' : 'Vắng thi'">
+                                            </button>
+                                        </td>
+                                        <td class="py-3 px-4 text-center">
+                                            <span class="px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 font-mono text-xs font-bold" x-text="st.assignedExam || '---'"></span>
+                                        </td>
+                                        <template x-for="(sec, sIdx) in config.sections" :key="sIdx">
+                                            <td class="py-3 px-3 text-center font-mono text-xs font-semibold text-slate-700"
+                                                x-text="(st.scores && st.scores[sIdx] !== undefined) ? st.scores[sIdx] : 0">
+                                            </td>
+                                        </template>
+                                        <td class="py-3 px-4 text-center font-mono font-extrabold text-base text-indigo-700" x-text="st.totalScore ?? 0"></td>
+                                        <td class="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+                                            <button @click="openGradingModal(st)" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition cursor-pointer">
+                                                Chấm điểm
+                                            </button>
+                                            <button @click="confirmDeleteStudent(st)" class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer" title="Xóa thí sinh">
+                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==================== TAB 4: CẤU HÌNH & PHẦN THI ==================== -->
+            <section x-show="activeTab === 'config'" x-transition.opacity x-cloak class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                <!-- Thông tin học phần & Hội đồng thi -->
+                <div class="lg:col-span-6 bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <i data-lucide="file-text" class="w-4 h-4 text-indigo-600"></i>
+                            Thông tin Ca thi & Biểu mẫu
+                        </h2>
+                        <button @click="clearLocalStorageDraft()" class="text-xs font-bold text-rose-600 hover:underline cursor-pointer">
+                            Xóa bản nháp
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-sm">
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Tiêu đề phiếu thi</label>
+                            <input type="text" x-model="config.examTitle" @input="saveToLocalStorage()" class="w-full px-3.5 py-2 rounded-xl border border-slate-200 font-semibold">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Tên học phần</label>
+                            <input type="text" x-model="config.subjectName" @input="saveToLocalStorage()" class="w-full px-3.5 py-2 rounded-xl border border-slate-200">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Mã học phần</label>
+                            <input type="text" x-model="config.subjectCode" @input="saveToLocalStorage()" class="w-full px-3.5 py-2 rounded-xl border border-slate-200 font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Lớp học phần</label>
+                            <input type="text" x-model="config.subClass" @input="saveToLocalStorage()" class="w-full px-3.5 py-2 rounded-xl border border-slate-200">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Năm học</label>
+                            <input type="text" x-model="config.academicYear" @input="saveToLocalStorage()" class="w-full px-3.5 py-2 rounded-xl border border-slate-200">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Học kỳ / Lần thi / Số TC</label>
+                            <div class="grid grid-cols-3 gap-1.5">
+                                <input type="text" x-model="config.semester" @input="saveToLocalStorage()" placeholder="HK" class="px-2.5 py-2 rounded-xl border border-slate-200 text-center">
+                                <input type="text" x-model="config.examAttempt" @input="saveToLocalStorage()" placeholder="Lần" class="px-2.5 py-2 rounded-xl border border-slate-200 text-center">
+                                <input type="text" x-model="config.credits" @input="saveToLocalStorage()" placeholder="TC" class="px-2.5 py-2 rounded-xl border border-slate-200 text-center">
                             </div>
-        
-                            <button @click="startRandomDraw()" 
-                                    :disabled="picker.isSpinning || getAvailableExams().length === 0" 
-                                    class="w-full py-4 bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 text-slate-900 font-black rounded-xl text-base shadow-lg uppercase transition-all">
-                                <span x-text="picker.isSpinning ? 'Đang Xoay Số...' : (picker.targetStudentId === 'ALL' ? 'Bắt Đầu Gán Cho Toàn Bộ SV' : 'Bắt Đầu Bốc Đề Thi')"></span>
-                            </button>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Ngày & Giờ thi (Lịch)</label>
+                            <input type="datetime-local" :value="config.examDateTimeISO" @change="updateExamDateTime($event.target.value)"
+                                   class="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Chuỗi hiển thị trên phiếu in</label>
+                            <input type="text" x-model="config.time" @input="saveToLocalStorage()"
+                                   class="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-700">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Phòng thi</label>
+                            <input type="text" x-model="config.roomName" @input="saveToLocalStorage()" class="w-full px-3.5 py-2 rounded-xl border border-slate-200">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Cơ sở / Địa điểm</label>
+                            <input type="text" x-model="config.facility" @input="saveToLocalStorage()" class="w-full px-3.5 py-2 rounded-xl border border-slate-200">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Cán bộ coi thi / chấm thi 1</label>
+                            <input type="text" x-model="config.examiner1" @input="saveToLocalStorage()" class="w-full px-3.5 py-2 rounded-xl border border-slate-200">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Cán bộ coi thi / chấm thi 2</label>
+                            <input type="text" x-model="config.examiner2" @input="saveToLocalStorage()" class="w-full px-3.5 py-2 rounded-xl border border-slate-200">
                         </div>
                     </div>
                 </div>
-        
-                <div class="space-y-6">
-                    <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm space-y-3">
-                        <h3 class="font-bold text-slate-800 text-xs uppercase tracking-wide border-b border-slate-100 pb-2">Danh Sách Mã Đề</h3>
-                        <textarea x-model="picker.rawExamList" rows="8" @input="saveToLocalStorage(); handleTargetStudentChange()" class="w-full text-xs font-mono p-3 border border-slate-300 rounded-lg"></textarea>
+
+                <!-- Cấu trúc các phần thi & Nạp điểm tự động từ Excel/CSV -->
+                <div class="lg:col-span-6 bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <div>
+                            <h2 class="text-base font-bold text-slate-900">Cấu trúc Phần thi & Thang điểm</h2>
+                            <p class="text-xs text-slate-500">Tổng điểm hiện tại: <strong class="text-indigo-700" x-text="getTotalPoints() + ' điểm'"></strong></p>
+                        </div>
+                        <button @click="addSection()" class="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center gap-1 cursor-pointer">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Thêm phần
+                        </button>
+                    </div>
+
+                    <div class="space-y-3">
+                        <template x-for="(sec, idx) in config.sections" :key="idx">
+                            <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="text-xs font-extrabold text-indigo-600 uppercase" x-text="'Phần ' + (idx + 1)"></span>
+                                    <button @click="removeSection(idx)" x-show="config.sections.length > 1" class="text-xs text-rose-500 hover:text-rose-700 font-bold cursor-pointer">Xóa</button>
+                                </div>
+
+                                <div class="grid grid-cols-12 gap-2.5">
+                                    <div class="col-span-8">
+                                        <label class="block text-[11px] font-bold text-slate-500 mb-1">Tên phần thi</label>
+                                        <input type="text" x-model="sec.title" @input="saveToLocalStorage()" class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-semibold">
+                                    </div>
+                                    <div class="col-span-4">
+                                        <label class="block text-[11px] font-bold text-slate-500 mb-1">Điểm tối đa</label>
+                                        <input type="number" step="0.25" x-model.number="sec.maxScore" @input="saveToLocalStorage()" class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-mono font-bold text-center">
+                                    </div>
+                                </div>
+
+                                <!-- Nạp điểm từ file Excel/CSV (Thang 10 quy đổi sang thang phần thi) -->
+                                <div class="pt-2 border-t border-slate-200/70 flex flex-wrap items-center justify-between gap-2">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-[11px] font-semibold text-slate-500">Làm tròn:</span>
+                                        <select x-model="sec.rounding" @change="saveToLocalStorage()" class="px-2 py-1 rounded-lg border border-slate-200 bg-white text-xs font-semibold">
+                                            <option value="none">2 chữ số thập phân</option>
+                                            <option value="0.1">Gần nhất 0.1</option>
+                                            <option value="0.25">Gần nhất 0.25</option>
+                                            <option value="0.5">Gần nhất 0.5</option>
+                                        </select>
+                                    </div>
+
+                                    <label class="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition">
+                                        <i data-lucide="upload" class="w-3 h-3"></i>
+                                        <span>Nạp điểm Excel (Cột C & I)</span>
+                                        <input type="file" accept=".xlsx,.xls,.csv" @change="handleSectionExcelScoreUpload($event, idx)" class="hidden">
+                                    </label>
+                                </div>
+                                <p x-show="sec.lastImportInfo" x-text="sec.lastImportInfo" class="text-[11px] text-emerald-700 font-semibold"></p>
+                            </div>
+                        </template>
                     </div>
                 </div>
+            </section>
+        </main>
+
+        <!-- ==================== MODAL 1: THÊM THÍ SINH THỦ CÔNG ==================== -->
+        <div x-show="showAddStudentModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+            <div @click.away="showAddStudentModal = false" class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-extrabold text-slate-900">Thêm thí sinh mới</h3>
+                    <button @click="showAddStudentModal = false" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                <form @submit.prevent="saveManualStudent()" class="space-y-3 text-sm">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Mã số sinh viên *</label>
+                        <input type="text" required x-model="newStudent.mssv" class="w-full px-3.5 py-2 rounded-xl border border-slate-200 font-mono">
+                    </div>
+                    <div class="grid grid-cols-3 gap-2.5">
+                        <div class="col-span-2">
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Họ và chữ lót *</label>
+                            <input type="text" required x-model="newStudent.hoLot" class="w-full px-3.5 py-2 rounded-xl border border-slate-200">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Tên *</label>
+                            <input type="text" required x-model="newStudent.ten" class="w-full px-3.5 py-2 rounded-xl border border-slate-200">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Lớp sinh hoạt</label>
+                        <input type="text" x-model="newStudent.className" class="w-full px-3.5 py-2 rounded-xl border border-slate-200">
+                    </div>
+                    <div class="pt-3 flex justify-end gap-2">
+                        <button type="button" @click="showAddStudentModal = false" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold cursor-pointer">Hủy</button>
+                        <button type="submit" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold cursor-pointer">Lưu thí sinh</button>
+                    </div>
+                </form>
             </div>
         </div>
 
-        <!-- TAB 3: STUDENTS & GRADING -->
-        <div x-show="activeTab === 'students'" x-cloak>
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm">
-                <!-- Thanh tiêu đề & cụm nút thao tác -->
-                <div class="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/50 space-y-3.5 rounded-t-2xl">
-                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5">
-                        <div>
-                            <h2 class="text-base sm:text-lg font-bold text-slate-800">Danh Sách Thí Sinh, Điểm Danh &amp; Chấm Điểm</h2>
-                            <p class="text-xs text-slate-500 mt-0.5">Tải mẫu Excel để nhập danh sách, điểm danh nhanh, nhập điểm từng phần hoặc xuất bảng điểm.</p>
-                        </div>
-                        
-                        <!-- Cụm 5 nút thao tác: chia lưới 2 cột đều trên điện thoại, xếp ngang trên máy tính -->
-                        <div class="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
-                            <!-- 1. Tải Mẫu Excel -->
-                            <button @click="downloadStudentTemplate()" 
-                                    class="px-3 py-2.5 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs rounded-xl border border-slate-200 transition-all flex items-center justify-center space-x-1.5">
-                                <i class="fa-solid fa-download text-slate-500"></i>
-                                <span>Mẫu DS Dự thi</span>
-                            </button>
-
-                            <!-- 2. Upload File Excel -->
-                            <label class="px-3 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-1.5 cursor-pointer">
-                                <i class="fa-solid fa-file-excel"></i>
-                                <span>Upload DS</span>
-                                <input type="file" accept=".xlsx, .xls" class="hidden" @change="handleStudentExcelUpload($event)">
-                            </label>
-
-                            <!-- 3. Thêm Thí Sinh Thủ Công -->
-                            <button @click="showAddStudentModal = true" 
-                                    class="px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-1.5">
-                                <i class="fa-solid fa-user-plus"></i>
-                                <span>Thêm 1 SV</span>
-                            </button>
-
-                            <!-- 4. Xem trước & In Danh Sách Sinh viên dự thi -->
-                            <button @click="printExamSheet()" 
-                                    class="px-3 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-1.5">
-                                <i class="fa-solid fa-print"></i>
-                                <span>In DS Dự Thi</span>
-                            </button>
-
-                            <!-- 5. Tải Kết Quả Điểm (.XLSX) -->
-                            <button @click="exportToExcelXLSX()" 
-                                    class="col-span-2 sm:col-auto px-3.5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-1.5">
-                                <i class="fa-solid fa-file-arrow-down"></i>
-                                <span>Tải Điểm (.XLSX)</span>
-                            </button>
-                        </div>
+        <!-- ==================== MODAL 2: CHẤM ĐIỂM THÍ SINH ==================== -->
+        <div x-show="showGradingModal && activeStudent" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+            <div @click.away="showGradingModal = false" class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div>
+                        <h3 class="text-lg font-extrabold text-slate-900" x-text="activeStudent ? `${activeStudent.hoLot} ${activeStudent.ten}` : ''"></h3>
+                        <p class="text-xs font-mono text-slate-500" x-text="activeStudent ? `MSSV: ${activeStudent.mssv} • Đề: ${activeStudent.assignedExam || 'Chưa có'}` : ''"></p>
                     </div>
+                    <button @click="showGradingModal = false" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer"><i data-lucide="x" class="w-5 h-5"></i></button>
                 </div>
 
-                <!-- TRẠNG THÁI TRỐNG KHI CHƯA CÓ SINH VIÊN -->
-                <template x-if="students.length === 0">
-                    <div class="p-8 text-center text-xs text-slate-400">
-                        Chưa có thí sinh nào trong danh sách. Hãy bấm <strong class="text-slate-600">Upload DS</strong> hoặc <strong class="text-slate-600">Thêm 1 SV</strong>.
-                    </div>
-                </template>
-
-                <!-- 1. GIAO DIỆN CARD TRÊN ĐIỆN THOẠI DI ĐỘNG (< 768px) -->
-                <div x-show="students.length > 0" class="md:hidden p-3 space-y-2.5 bg-slate-50/60 rounded-b-2xl">
-                    <template x-for="(st, index) in students" :key="st.id">
-                        <div class="bg-white rounded-xl p-3.5 border shadow-xs transition-all space-y-2.5"
-                             :class="st.isPresent ? 'border-slate-200' : 'border-rose-200 bg-rose-50/20'">
-                            
-                            <!-- Hàng 1: STT + Họ Tên + MSSV/Lớp + Nút Điểm Danh -->
-                            <div class="flex items-start justify-between gap-2">
-                                <div class="min-w-0 space-y-0.5">
-                                    <div class="flex items-center space-x-1.5">
-                                        <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-mono text-[10px] font-bold shrink-0" x-text="'#' + (index + 1)"></span>
-                                        <h3 class="text-xs font-extrabold text-slate-900 truncate" x-text="`${st.hoLot || ''} ${st.ten || ''}`.trim()"></h3>
-                                    </div>
-                                    <div class="flex items-center space-x-2 text-[11px] text-slate-500 pl-0.5">
-                                        <span class="font-mono font-bold text-slate-700" x-text="st.mssv"></span>
-                                        <span>•</span>
-                                        <span class="truncate" x-text="st.className || 'N/A'"></span>
-                                    </div>
-                                </div>
-
-                                <!-- Nút bật/tắt điểm danh nhanh -->
-                                <button @click="toggleAttendance(st)" 
-                                        class="px-2.5 py-1 rounded-full text-[10px] font-extrabold tracking-wide shrink-0 transition-all active:scale-95"
-                                        :class="st.isPresent ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'"
-                                        x-text="st.isPresent ? 'CÓ MẶT' : 'VẮNG'">
-                                </button>
+                <div class="space-y-3">
+                    <template x-for="(sec, idx) in config.sections" :key="idx">
+                        <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+                            <div>
+                                <div class="text-sm font-bold text-slate-800" x-text="sec.title || ('Phần ' + (idx+1))"></div>
+                                <div class="text-xs text-slate-500" x-text="`Tối đa: ${sec.maxScore} điểm`"></div>
                             </div>
-
-                            <!-- Hàng 2: Mã đề + Tổng điểm + Nút Nhập Điểm & Xóa -->
-                            <div class="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                                <div class="flex items-center space-x-2 text-xs">
-                                    <span class="px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 font-mono text-[11px] font-bold text-amber-800"
-                                          x-text="st.assignedExam ? `Đề: ${st.assignedExam}` : 'Chưa gán đề'"></span>
-                                    <span class="font-mono font-black text-sm text-blue-600" x-text="(st.totalScore || 0) + ' đ'"></span>
-                                </div>
-
-                                <div class="flex items-center space-x-1.5 shrink-0">
-                                    <button @click="openGradingModal(st)" 
-                                            class="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 active:bg-blue-200 text-blue-700 font-bold text-[11px] rounded-lg border border-blue-200 transition-all flex items-center space-x-1">
-                                        <i class="fa-solid fa-pen-to-square"></i>
-                                        <span>Chấm điểm</span>
-                                    </button>
-                                    <button @click="confirmDeleteStudent(st)" 
-                                            title="Xóa thí sinh"
-                                            class="w-7 h-7 flex items-center justify-center rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-all">
-                                        <i class="fa-solid fa-trash-can text-[11px]"></i>
-                                    </button>
-                                </div>
-                            </div>
+                            <input type="number" step="0.25" min="0" :max="sec.maxScore"
+                                   x-model.number="activeStudent.scores[idx]"
+                                   @input="calculateTotalScore(activeStudent)"
+                                   :class="(Number(activeStudent.scores[idx]) > Number(sec.maxScore)) ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-slate-300 bg-white'"
+                                   class="w-24 px-3 py-2 rounded-xl border font-mono text-base font-extrabold text-center">
                         </div>
                     </template>
                 </div>
 
-                <!-- 2. GIAO DIỆN BẢNG TRÊN MÁY TÍNH / TABLET (>= 768px) -->
-                <div x-show="students.length > 0" class="hidden md:block overflow-x-auto rounded-b-2xl">
-                    <table class="w-full text-left text-xs text-slate-600">
-                        <thead class="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
-                            <tr>
-                                <th class="px-4 py-3 text-center w-12">STT</th>
-                                <th class="px-4 py-3">SBD / MSSV</th>
-                                <th class="px-4 py-3">Họ Lót</th>
-                                <th class="px-4 py-3">Tên</th>
-                                <th class="px-4 py-3">Lớp</th>
-                                <th class="px-4 py-3 text-center">Điểm Danh</th>
-                                <th class="px-4 py-3">Đề Thi</th>
-                                <th class="px-4 py-3 text-center">Chấm Điểm Từng Phần</th>
-                                <th class="px-4 py-3 text-center font-bold text-blue-700">Tổng Điểm</th>
-                                <th class="px-4 py-3 text-center w-20">Xóa</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100 bg-white">
-                            <template x-for="(st, index) in students" :key="st.id">
-                                <tr class="hover:bg-slate-50">
-                                    <td class="px-4 py-3 text-center font-mono text-slate-400" x-text="index + 1"></td>
-                                    <td class="px-4 py-3 font-mono font-bold text-slate-800" x-text="st.mssv"></td>
-                                    <td class="px-4 py-3 text-slate-700" x-text="st.hoLot"></td>
-                                    <td class="px-4 py-3 font-semibold text-slate-800" x-text="st.ten"></td>
-                                    <td class="px-4 py-3 text-slate-500" x-text="st.className || 'N/A'"></td>
-                                    <td class="px-4 py-3 text-center">
-                                        <button @click="toggleAttendance(st)" class="px-2.5 py-1 rounded-full text-[11px] font-bold shadow-sm"
-                                                :class="st.isPresent ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'"
-                                                x-text="st.isPresent ? 'CÓ MẶT' : 'VẮNG'">
-                                        </button>
-                                    </td>
-                                    <td class="px-4 py-3 font-mono font-bold text-amber-700" x-text="st.assignedExam || 'Chưa gán'"></td>
-                                    <td class="px-4 py-3 text-center">
-                                        <button @click="openGradingModal(st)" class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-lg border border-blue-200">
-                                            <i class="fa-solid fa-pen-to-square mr-1"></i> Nhập Điểm Phần
-                                        </button>
-                                    </td>
-                                    <td class="px-4 py-3 text-center font-black font-mono text-sm text-blue-600" x-text="(st.totalScore || 0) + ' đ'"></td>
-                                    <td class="px-4 py-3 text-center">
-                                        <button @click="confirmDeleteStudent(st)" class="text-rose-500 hover:text-rose-700"><i class="fa-solid fa-trash-can"></i></button>
-                                    </td>
-                                </tr>
-                            </template>
-                        </tbody>
-                    </table>
+                <div class="p-4 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-between">
+                    <span class="text-sm font-bold text-indigo-900">Tổng điểm đạt được:</span>
+                    <span class="font-mono text-2xl font-extrabold text-indigo-700" x-text="activeStudent ? activeStudent.totalScore : 0"></span>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2">
+                    <button @click="showGradingModal = false" class="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold cursor-pointer">Đóng</button>
+                    <button @click="saveGradingModal()" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold cursor-pointer">Lưu bảng điểm</button>
                 </div>
             </div>
         </div>
 
-       <!-- TAB 4: CONFIG (Cấu hình đồng bộ & tự động ghép Khối Lớp) -->
-        <div x-show="activeTab === 'config'" x-cloak>
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                <!-- Cột trái & giữa: Nhập thông tin cấu hình buổi thi -->
-                <div class="lg:col-span-2 space-y-6">
-                    
-                    <!-- NHÓM 1: THÔNG TIN MÔN HỌC & LỚP HỌC PHẦN -->
-                    <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-                        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                            <h2 class="text-base font-bold text-slate-800 flex items-center">
-                                <i class="fa-solid fa-book-bookmark text-blue-600 mr-2"></i> Thông Tin Môn Học & Lớp Học Phần
-                            </h2>
-                            <!-- Thẻ Preview Khối Lớp tự động -->
-                            <span class="text-xs font-bold px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-full">
-                                Khối Lớp tự động: <span class="font-mono text-amber-900" x-text="`${config.subjectCode || ''} ${config.subClass || ''}`.trim() || 'Chưa đủ thông tin'"></span>
-                            </span>
-                        </div>
-        
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-700 mb-1">Tên Môn Học (*):</label>
-                                <input type="text" x-model="config.subjectName" @input="saveToLocalStorage()" placeholder="VD: Sinh Học Đại Cương" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-700 mb-1">Mã Môn (*):</label>
-                                <input type="text" x-model="config.subjectCode" @input="saveToLocalStorage()" placeholder="VD: BIO101" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg font-mono font-bold focus:ring-2 focus:ring-blue-500">
-                            </div>
-                        </div>
-        
-                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-700 mb-1">Lớp HP / Ký Hiệu (*):</label>
-                                <input type="text" x-model="config.subClass" @input="saveToLocalStorage()" placeholder="VD: C1" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg font-bold focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-700 mb-1">Số Tín Chỉ (Số TC):</label>
-                                <input type="text" x-model="config.credits" @input="saveToLocalStorage()" placeholder="VD: 1" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg font-bold focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-700 mb-1">Lớp Môn Học (Full):</label>
-                                <input type="text" readonly :value="`${config.subjectCode || ''} ${config.subClass || ''}`.trim()" class="w-full text-xs p-2.5 bg-slate-100 border border-slate-200 rounded-lg font-mono font-bold text-slate-600 cursor-not-allowed">
-                            </div>
-                        </div>
+        <!-- ==================== MODAL 3: ĐỒNG BỘ TRỰC TIẾP P2P ==================== -->
+        <div x-show="syncState.showModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+            <div @click.away="closeSyncModal()" class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 class="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                        <i data-lucide="radio" class="w-5 h-5 text-indigo-600"></i>
+                        Đồng bộ phòng thi trực tiếp (P2P)
+                    </h3>
+                    <button @click="closeSyncModal()" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+
+                <!-- Trạng thái chưa kết nối -->
+                <div x-show="syncState.status === 'disconnected'" class="space-y-4">
+                    <div class="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-100 space-y-3">
+                        <h4 class="text-sm font-bold text-indigo-950">1. Tạo phòng chủ trì (Máy chính / Giám thị 1)</h4>
+                        <button @click="startLiveSyncHost()" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold cursor-pointer">
+                            Tạo mã phòng & Phát trực tiếp
+                        </button>
                     </div>
-        
-                    <!-- NHÓM 2: THÔNG TIN KỲ THI, THỜI GIAN & ĐỊA ĐIỂM -->
-                    <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-                        <h2 class="text-base font-bold text-slate-800 border-b border-slate-100 pb-3 flex items-center">
-                            <i class="fa-solid fa-calendar-days text-blue-600 mr-2"></i> Thông Tin Kỳ Thi & Địa Điểm
-                        </h2>
-        
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-700 mb-1">Năm Học:</label>
-                                <input type="text" x-model="config.academicYear" @input="saveToLocalStorage()" placeholder="VD: 2026-2027" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-700 mb-1">Học Kỳ:</label>
-                                <input type="text" x-model="config.semester" @input="saveToLocalStorage()" placeholder="VD: 1" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-700 mb-1">Lần Thi:</label>
-                                <input type="text" x-model="config.examAttempt" @input="saveToLocalStorage()" placeholder="VD: 1" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg">
-                            </div>
+
+                    <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                        <h4 class="text-sm font-bold text-slate-900">2. Tham gia phòng có sẵn (Máy phụ / Giám thị 2)</h4>
+                        <input type="text" x-model="syncState.deviceName" placeholder="Tên thiết bị của bạn (VD: iPad Giám thị 2)" class="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-sm">
+                        <div class="flex gap-2">
+                            <input type="text" x-model="syncState.inputCode" placeholder="Nhập mã phòng 6 ký tự..." class="flex-1 px-3.5 py-2 rounded-xl border border-slate-200 bg-white font-mono uppercase text-sm">
+                            <button @click="joinLiveSyncRoom()" class="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-bold cursor-pointer">Vào phòng</button>
                         </div>
-        
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">
-                                    <i class="fa-regular fa-calendar-days mr-1 text-blue-600"></i> Thời Gian Thi
-                                </label>
-                                <input type="datetime-local"
-                                       x-model="config.examDateTimeISO"
-                                       @change="updateExamDateTime($event.target.value)"
-                                       class="w-full text-sm font-medium p-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
-                                <div class="mt-1.5 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800">
-                                    Hiển thị: <strong x-text="formatVietnameseExamTime(config.examDateTimeISO)"></strong>
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-700 mb-1">Phòng Thi:</label>
-                                <input type="text" x-model="config.roomName" @input="saveToLocalStorage()" placeholder="VD: 116" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg font-bold">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-700 mb-1">Cơ Sở:</label>
-                                <input type="text" x-model="config.facility" @input="saveToLocalStorage()" placeholder="VD: K7/25 Quang Trung" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg">
-                            </div>
+
+                        <div class="flex flex-wrap gap-2 pt-1">
+                            <button type="button" @click="startQrScanner()" class="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 cursor-pointer">
+                                Quét QR Camera
+                            </button>
+                            <label class="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 cursor-pointer">
+                                Chụp Ảnh Mã QR
+                                <input type="file" accept="image/*" capture="environment" @change="handleQrImageCapture($event)" class="hidden">
+                            </label>
                         </div>
-        
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-700 mb-1">Giám Khảo 1:</label>
-                                <input type="text" x-model="config.examiner1" @input="saveToLocalStorage()" placeholder="VD: HUỲNH NGỌC THÀNH" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg font-bold text-slate-800">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-700 mb-1">Giám Khảo 2:</label>
-                                <input type="text" x-model="config.examiner2" @input="saveToLocalStorage()" placeholder="Họ và tên Giám khảo 2" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg">
-                            </div>
+
+                        <div x-show="syncState.isScanningQr" class="mt-2 rounded-xl overflow-hidden border border-slate-300">
+                            <div id="p2p-qr-reader" class="w-full"></div>
+                            <button type="button" @click="stopQrScanner()" class="w-full py-1.5 bg-rose-600 text-white text-xs font-bold">Tắt Camera</button>
                         </div>
+                        <p x-show="syncState.authError" x-text="syncState.authError" class="text-xs font-bold text-rose-600"></p>
                     </div>
                 </div>
-        
-                <!-- Cột phải: Cấu trúc phần thi & Thang điểm -->
-                <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4 h-fit">
-                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                        <h2 class="text-base font-bold text-slate-800 flex items-center">
-                            <i class="fa-solid fa-list-check text-blue-600 mr-2"></i> Thang Điểm Phần Thi
-                        </h2>
-                        <span class="text-base font-black font-mono text-blue-600" x-text="'Tổng: ' + getTotalPoints() + 'đ'"></span>
+
+                <!-- Trạng thái đang kết nối / chờ duyệt -->
+                <div x-show="syncState.status !== 'disconnected'" class="space-y-4">
+                    <div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-emerald-700 uppercase" x-text="syncState.role === 'host' ? 'Đang chủ trì phòng' : 'Đã kết nối phòng'"></div>
+                            <div class="font-mono text-2xl font-extrabold text-slate-900 tracking-wider" x-text="syncState.roomCode"></div>
+                        </div>
+                        <button @click="copySyncCode()" class="px-3 py-1.5 rounded-xl bg-white border border-emerald-200 text-xs font-bold text-emerald-700 cursor-pointer">Sao chép mã</button>
                     </div>
-                    
-                    <div class="space-y-3 max-h-[460px] overflow-y-auto pr-1">
-                        <template x-for="(sec, idx) in config.sections" :key="idx">
-                            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
-                                <div class="flex justify-between items-center">
-                                    <span class="text-xs font-bold text-blue-700" x-text="`Phần ${idx + 1}`"></span>
-                                    <button @click="removeSection(idx)" class="text-rose-500 text-xs font-semibold hover:underline">
-                                        <i class="fa-solid fa-trash-can mr-1"></i> Xóa
-                                    </button>
-                                </div>
 
-                                <div class="space-y-2">
-                                    <input type="text" x-model="sec.title" @input="saveToLocalStorage()" placeholder="Tên phần thi" class="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white">
-                                    
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <div class="flex items-center space-x-1.5">
-                                            <input type="number" step="0.5" min="0" x-model.number="sec.maxScore" @input="saveToLocalStorage()" placeholder="Điểm tối đa" class="w-full text-xs p-2 border border-slate-300 rounded-lg font-bold bg-white">
-                                            <span class="text-xs font-semibold text-slate-500 whitespace-nowrap">điểm</span>
-                                        </div>
-                                        
-                                        <!-- Tùy chọn làm tròn điểm quy đổi -->
-                                        <select x-model="sec.rounding" @change="saveToLocalStorage()" title="Quy tắc làm tròn khi nạp từ Excel" class="w-full text-[11px] p-2 border border-slate-300 rounded-lg bg-white text-slate-700 font-medium">
-                                            <option value="none">Làm tròn 2 số thập phân</option>
-                                            <option value="0.1">Làm tròn 1 số thập phân</option>
-                                            <option value="0.25">Làm tròn 0.25</option>
-                                            <option value="0.5">Làm tròn 0.5</option>
-                                        </select>
-                                    </div>
-                                </div>
+                    <div x-show="syncState.role === 'host'" class="flex justify-center p-3 bg-white rounded-2xl border border-slate-200">
+                        <div id="p2p-qrcode-box"></div>
+                    </div>
 
-                                <!-- Nút Upload file Excel Bảng điểm cho riêng Phần thi này -->
-                                <div class="pt-1.5 border-t border-slate-200/80 space-y-1">
-                                    <label class="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-[11px] rounded-lg transition-all flex items-center justify-center space-x-1.5 cursor-pointer">
-                                        <i class="fa-solid fa-file-excel text-emerald-600"></i>
-                                        <span>Nạp Điểm</span>
-                                        <input type="file" accept=".xlsx, .xls, .csv" class="hidden" @change="handleSectionExcelScoreUpload($event, idx)">
-                                    </label>
-                                    <p x-show="sec.lastImportInfo" class="text-[10px] text-emerald-700 font-medium truncate" x-text="sec.lastImportInfo"></p>
+                    <!-- Danh sách chờ duyệt trên Host -->
+                    <div x-show="syncState.role === 'host' && syncState.pendingRequests.length > 0" class="space-y-2">
+                        <h4 class="text-xs font-extrabold uppercase text-amber-700">Yêu cầu tham gia đang chờ duyệt:</h4>
+                        <template x-for="req in syncState.pendingRequests" :key="req.deviceId">
+                            <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-2">
+                                <span class="text-sm font-bold text-slate-800" x-text="req.deviceName"></span>
+                                <div class="flex gap-1.5">
+                                    <button @click="approveSyncGuest(req.deviceId)" class="px-3 py-1 rounded-lg bg-emerald-600 text-white text-xs font-bold cursor-pointer">Duyệt</button>
+                                    <button @click="rejectSyncGuest(req.deviceId)" class="px-3 py-1 rounded-lg bg-rose-600 text-white text-xs font-bold cursor-pointer">Từ chối</button>
                                 </div>
                             </div>
                         </template>
                     </div>
-                    
-                    <button @click="addSection()" class="w-full py-2.5 border-2 border-dashed border-slate-300 hover:border-blue-500 text-slate-600 font-semibold text-xs rounded-xl transition-all">
-                        + Thêm Phần Thi Mới
+
+                    <!-- Danh sách thiết bị đã duyệt -->
+                    <div x-show="syncState.role === 'host' && syncState.guestList.length > 0" class="space-y-2">
+                        <h4 class="text-xs font-extrabold uppercase text-slate-500">Thiết bị đang đồng bộ:</h4>
+                        <template x-for="g in syncState.guestList" :key="g.deviceId">
+                            <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                                <span class="text-xs font-bold text-slate-700" x-text="g.deviceName"></span>
+                                <button @click="revokeSyncGuest(g.deviceId)" class="text-xs font-bold text-rose-600 hover:underline cursor-pointer">Ngắt kết nối</button>
+                            </div>
+                        </template>
+                    </div>
+
+                    <button @click="disconnectLiveSync()" class="w-full py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-sm font-bold cursor-pointer">
+                        Ngắt kết nối đồng bộ
                     </button>
                 </div>
-        
             </div>
         </div>
-    </main>
 
-    <!-- MODAL: ADD STUDENT -->
-    <div x-show="showAddStudentModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-3" @click.away="showAddStudentModal = false">
-            <h3 class="text-base font-bold text-slate-800 border-b border-slate-100 pb-2">Thêm Thí Sinh Mới</h3>
-            <div><label class="block text-xs font-semibold text-slate-700 mb-1">Mã Thí Sinh / MSSV (*):</label><input type="text" x-model="newStudent.mssv" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg"></div>
-            <div><label class="block text-xs font-semibold text-slate-700 mb-1">Họ Lót (*):</label><input type="text" x-model="newStudent.hoLot" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg"></div>
-            <div><label class="block text-xs font-semibold text-slate-700 mb-1">Tên (*):</label><input type="text" x-model="newStudent.ten" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg"></div>
-            <div><label class="block text-xs font-semibold text-slate-700 mb-1">Lớp:</label><input type="text" x-model="newStudent.className" class="w-full text-xs p-2.5 border border-slate-300 rounded-lg"></div>
-            <div class="mt-4 flex justify-end space-x-2">
-                <button @click="showAddStudentModal = false" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg">Hủy</button>
-                <button @click="saveManualStudent()" class="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg">Lưu</button>
+        <!-- ==================== MODAL 4: QUẢN LÝ SUẤT THI ==================== -->
+        <div x-show="sessionState.showModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+            <div @click.away="sessionState.showModal = false" class="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 class="text-lg font-extrabold text-slate-900">Kho lưu trữ Suất thi</h3>
+                    <button @click="sessionState.showModal = false" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+
+                <!-- Lưu ca hiện tại -->
+                <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
+                    <div class="text-xs font-bold text-slate-700">Lưu dữ liệu ca thi hiện tại vào bộ nhớ trình duyệt:</div>
+                    <div class="flex flex-wrap gap-2">
+                        <input type="password" x-model="sessionState.newPassword" placeholder="Mật khẩu bảo vệ (tùy chọn)" class="flex-1 min-w-[160px] px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs">
+                        <button @click="saveCurrentSession(false)" class="px-3.5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold cursor-pointer">Lưu suất mới</button>
+                        <button x-show="sessionState.currentSessionId" @click="saveCurrentSession(true)" class="px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold cursor-pointer">Cập nhật suất đang mở</button>
+                    </div>
+                </div>
+
+                <!-- Xuất / Nhập file JSON dự phòng -->
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <button @click="exportCurrentSessionJson()" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">
+                        Xuất file sao lưu (.json)
+                    </button>
+                    <label class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">
+                        Khôi phục từ file (.json)
+                        <input type="file" accept=".json" @change="importSessionJson($event)" class="hidden">
+                    </label>
+                </div>
+
+                <!-- Danh sách các suất thi đã lưu -->
+                <div class="space-y-2 max-h-60 overflow-y-auto">
+                    <template x-for="item in sessionState.savedSessions" :key="item.id">
+                        <div class="p-3 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                            <div class="min-w-0">
+                                <div class="text-sm font-bold text-slate-900 truncate" x-text="item.title"></div>
+                                <div class="text-[11px] text-slate-500" x-text="item.savedAt"></div>
+                            </div>
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                <button @click="triggerSessionAction(item, 'load')" class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold cursor-pointer">Mở</button>
+                                <button @click="exportSpecificSessionJson(item)" class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold cursor-pointer">JSON</button>
+                                <button @click="triggerSessionAction(item, 'delete')" class="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-600 text-xs font-bold cursor-pointer">Xóa</button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Hộp thoại xác thực mật khẩu suất thi -->
+                <div x-show="sessionState.authPrompt.show" class="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-2">
+                    <div class="text-xs font-bold text-amber-900">Nhập mật khẩu để tiếp tục thao tác:</div>
+                    <div class="flex gap-2">
+                        <input type="password" x-model="sessionState.authPrompt.inputPassword" class="flex-1 px-3 py-1.5 rounded-lg border border-amber-300 bg-white text-xs">
+                        <button @click="verifySessionPassword()" class="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold cursor-pointer">Xác nhận</button>
+                    </div>
+                    <p x-show="sessionState.authPrompt.errorMsg" x-text="sessionState.authPrompt.errorMsg" class="text-xs font-bold text-rose-600"></p>
+                </div>
             </div>
+        </div>
+
+        <!-- ==================== MODAL XÁC NHẬN & TOAST ==================== -->
+        <div x-show="confirmModal.show" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+            <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl space-y-4">
+                <h4 class="text-base font-extrabold text-slate-900" x-text="confirmModal.title"></h4>
+                <p class="text-sm text-slate-600" x-text="confirmModal.message"></p>
+                <div class="flex justify-end gap-2">
+                    <button @click="confirmModal.show = false" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold cursor-pointer">Hủy</button>
+                    <button @click="executeConfirmAction()" class="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold cursor-pointer">Đồng ý</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div class="fixed bottom-4 right-4 z-50 space-y-2 max-w-sm w-full pointer-events-none">
+            <template x-for="t in toasts" :key="t.id">
+                <div class="pointer-events-auto p-3.5 rounded-2xl shadow-lg border text-xs font-bold flex items-center justify-between gap-3 bg-white"
+                     :class="t.type === 'error' ? 'border-rose-200 text-rose-700' : (t.type === 'warning' ? 'border-amber-200 text-amber-800' : 'border-emerald-200 text-emerald-800')">
+                    <span x-text="t.message"></span>
+                    <button @click="removeToast(t.id)" class="text-slate-400 hover:text-slate-600 cursor-pointer">✕</button>
+                </div>
+            </template>
         </div>
     </div>
 
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js').catch((err) => {
-            console.warn('Đăng ký Service Worker thất bại:', err);
-          });
-        });
-      }
-    </script>
-    
+    <!-- ======================== VÙNG IN PHIẾU A4 (CHỈ HIỆN KHI IN) ======================== -->
+    <div id="print-area"></div>
+
+    <!-- Khởi chạy ứng dụng chính -->
+    <script type="module" src="./app.js"></script>
 </body>
 </html>
