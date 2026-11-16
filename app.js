@@ -67,8 +67,9 @@ document.addEventListener('alpine:init', () => {
             credits: '1',
             semester: '1',
             examAttempt: '1',
-            examTime: '07h00 - Ngày 08/11/2026',
-            durationMinutes: 45,
+            examDateTimeISO: '', // Lưu giá trị lịch dạng "2026-11-16T07:30"
+            time: '',             // Lưu chuỗi hiển thị "07 giờ 30 phút, ngày 16/11/2026"
+            durationMinutes: 60,
             roomName: '116',
             facility: 'K7/25 Quang Trung',
             examiner1: 'HUỲNH NGỌC THÀNH',
@@ -670,4 +671,47 @@ document.addEventListener('alpine:init', () => {
         },
         getTimerStatusText() { return this.timer.isRunning ? 'Đang chạy' : 'Tạm dừng'; }
     }));
+
+    // Chuyển từ giá trị lịch ("2026-11-16T07:30") sang "07 giờ 30 phút, ngày 16/11/2026"
+    formatVietnameseExamTime(isoValue) {
+        if (!isoValue || !isoValue.includes('T')) {
+            return '.... giờ ..... phút, ngày ..../....../..........';
+        }
+        const [datePart, timePart] = isoValue.split('T');
+        const [year, month, day] = datePart.split('-');
+        const [hour, minute] = timePart.split(':');
+        if (!year || !month || !day || !hour || !minute) {
+            return '.... giờ ..... phút, ngày ..../....../..........';
+        }
+        return `${hour.padStart(2, '0')} giờ ${minute.padStart(2, '0')} phút, ngày ${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+    },
+    
+    // Chuyển ngược chuỗi đã lưu ("07 giờ 30 phút, ngày 16/11/2026" hoặc "07h30 - 16/11/2026") về dạng lịch khi mở form Sửa
+    parseVietnameseExamTimeToISO(displayText) {
+        if (!displayText) return '';
+        const text = String(displayText).trim();
+    
+        // Khớp dạng "07 giờ 30 phút, ngày 16/11/2026"
+        const vnMatch = text.match(/(\d{1,2})\s*giờ\s*(\d{1,2})\s*phút,\s*ngày\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/i);
+        if (vnMatch) {
+            const [, hh, mm, dd, mo, yyyy] = vnMatch;
+            return `${yyyy}-${mo.padStart(2, '0')}-${dd.padStart(2, '0')}T${hh.padStart(2, '0')}:${mm.padStart(2, '0')}`;
+        }
+    
+        // Khớp dạng cũ "07h30 - 16/11/2026"
+        const legacyMatch = text.match(/(\d{1,2})[h:](\d{1,2})\s*-\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/i);
+        if (legacyMatch) {
+            const [, hh, mm, dd, mo, yyyy] = legacyMatch;
+            return `${yyyy}-${mo.padStart(2, '0')}-${dd.padStart(2, '0')}T${hh.padStart(2, '0')}:${mm.padStart(2, '0')}`;
+        }
+    
+        return '';
+    },
+    
+    // Cập nhật khi người dùng chọn ngày giờ trên lịch
+    updateExamDateTime(isoValue) {
+        this.config.examDateTimeISO = isoValue || '';
+        this.config.time = this.formatVietnameseExamTime(isoValue);
+        this.saveToLocalStorage();
+    },
 });
