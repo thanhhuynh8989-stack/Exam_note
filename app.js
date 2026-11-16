@@ -13,6 +13,7 @@ document.addEventListener('alpine:init', () => {
     // Đăng ký component examApp chuẩn theo Alpine 3.x
     Alpine.data('examApp', () => ({
         activeTab: 'timer',
+        mobileMenuOpen: false,
         currentSystemTime: '',
         isZaloBrowser: false,
         showAddStudentModal: false,
