@@ -22,6 +22,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- QRCode.js cho tính năng quét mã tham gia phòng nhanh -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Thư viện mở Camera quét mã QR -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     
     <!-- Custom Stylesheet -->
     <link rel="stylesheet" href="style.css">
@@ -112,9 +114,12 @@
         </div>
     </div>
    
-    <!-- MODAL: P2P LIVE SYNC (ĐỒNG BỘ TRỰC TIẾP ĐA THIẾT BỊ) -->
+    <!-- MODAL: P2P LIVE SYNC (ĐỒNG BỘ TRỰC TIẾP ĐA THIẾT BỊ CÓ BẢO MẬT & QUÉT QR) -->
     <div x-show="syncState.showModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5" @click.away="syncState.showModal = false">
+        <div class="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-100 space-y-4 max-h-[90vh] overflow-y-auto" 
+             @click.away="closeSyncModal()">
+            
+            <!-- Header Modal -->
             <div class="flex justify-between items-center border-b border-slate-100 pb-3">
                 <div class="flex items-center space-x-2">
                     <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
@@ -122,10 +127,10 @@
                     </div>
                     <div>
                         <h3 class="text-base font-bold text-slate-900">Đồng Bộ Trực Tiếp (Live P2P)</h3>
-                        <p class="text-[11px] text-slate-500">Kết nối đa thiết bị tức thì không cần cài đặt</p>
+                        <p class="text-[11px] text-slate-500">Bảo mật bằng mã ghép đôi &amp; kết nối đa thiết bị</p>
                     </div>
                 </div>
-                <button @click="syncState.showModal = false" class="text-slate-400 hover:text-slate-600">
+                <button @click="closeSyncModal()" class="text-slate-400 hover:text-slate-600 p-1">
                     <i class="fa-solid fa-xmark text-lg"></i>
                 </button>
             </div>
@@ -133,38 +138,102 @@
             <!-- TRẠNG THÁI CHƯA KẾT NỐI -->
             <template x-if="syncState.status === 'disconnected'">
                 <div class="space-y-4">
-                    <!-- Option 1: Mở cổng chia sẻ (Host) -->
-                    <div class="p-4 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2.5">
+                    
+                    <!-- OPTION 1: THIẾT BỊ CHÍNH (HOST) -->
+                    <div class="p-4 bg-blue-50/70 border border-blue-200 rounded-xl space-y-3">
                         <div class="flex items-center justify-between">
                             <span class="text-xs font-bold text-blue-900"><i class="fa-solid fa-display mr-1.5"></i>Thiết Bị Chính (Phòng Thi)</span>
                             <span class="text-[10px] font-bold px-2 py-0.5 bg-blue-600 text-white rounded-full">HOST</span>
                         </div>
-                        <p class="text-[11px] text-slate-600">Tạo mã phòng & mã QR để điện thoại / máy tính bảng khác quét và theo dõi, chấm điểm cùng lúc.</p>
+                        <p class="text-[11px] text-slate-600">Đặt mật khẩu hoặc mã PIN ghép đôi để giới hạn chỉ thiết bị được cấp quyền mới xem và chấm điểm được.</p>
+                        
+                        <!-- Cài đặt Mật khẩu / Mã PIN ghép đôi -->
+                        <div class="flex space-x-2">
+                            <div class="relative flex-grow">
+                                <i class="fa-solid fa-key absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                                <input :type="syncState.showPassword ? 'text' : 'password'" 
+                                       x-model="syncState.hostPassword" 
+                                       placeholder="Đặt mật khẩu / PIN (trống = mở tự do)" 
+                                       class="w-full pl-8 pr-8 py-2 text-xs bg-white border border-blue-200 rounded-xl font-mono font-bold focus:ring-2 focus:ring-blue-500">
+                                <button type="button" @click="syncState.showPassword = !syncState.showPassword" 
+                                        class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">
+                                    <i class="fa-solid" :class="syncState.showPassword ? 'fa-eye-slash' : 'fa-eye'"></i>
+                                </button>
+                            </div>
+                            <button type="button" @click="generateRandomSyncPin()" 
+                                    title="Tạo ngẫu nhiên mã PIN 4 số"
+                                    class="px-3 py-2 bg-white hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold shrink-0 transition-all">
+                                <i class="fa-solid fa-dice mr-1"></i>PIN 4 số
+                            </button>
+                        </div>
+
                         <button @click="startLiveSyncHost()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-2">
                             <i class="fa-solid fa-wifi"></i>
                             <span>Bật Cổng Chia Sẻ Trực Tiếp</span>
                         </button>
                     </div>
 
-                    <div class="relative flex py-1 items-center">
+                    <div class="relative flex py-0.5 items-center">
                         <div class="flex-grow border-t border-slate-200"></div>
                         <span class="flex-shrink mx-3 text-[11px] font-bold text-slate-400 uppercase">Hoặc</span>
                         <div class="flex-grow border-t border-slate-200"></div>
                     </div>
 
-                    <!-- Option 2: Tham gia phòng có sẵn (Guest) -->
-                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                    <!-- OPTION 2: THIẾT BỊ PHỤ (GUEST) -->
+                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                         <div class="flex items-center justify-between">
                             <span class="text-xs font-bold text-slate-800"><i class="fa-solid fa-mobile-screen-button mr-1.5"></i>Thiết Bị Phụ (Giám Thị 2)</span>
                             <span class="text-[10px] font-bold px-2 py-0.5 bg-slate-200 text-slate-700 rounded-full">GUEST</span>
                         </div>
-                        <p class="text-[11px] text-slate-500">Nhập mã phòng đang hiển thị trên máy chính để đồng bộ dữ liệu 2 chiều.</p>
-                        <div class="flex space-x-2">
-                            <input type="text" x-model="syncState.inputCode" @keydown.enter="joinLiveSyncRoom()" placeholder="VD: THI-4829" class="flex-grow text-xs font-mono font-bold uppercase p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
-                            <button @click="joinLiveSyncRoom()" class="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all">
-                                Kết Nối
+
+                        <!-- Nút mở Camera quét mã QR nhanh -->
+                        <div>
+                            <button x-show="!syncState.isScanningQr" 
+                                    @click="startQrScanner()" 
+                                    type="button"
+                                    class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-2">
+                                <i class="fa-solid fa-qrcode text-sm"></i>
+                                <span>Mở Camera Quét Mã QR Phòng Thi</span>
                             </button>
+
+                            <!-- Khung hiển thị Camera khi đang quét QR -->
+                            <div x-show="syncState.isScanningQr" class="space-y-2">
+                                <div id="p2p-qr-reader" class="w-full overflow-hidden rounded-xl border-2 border-emerald-500 bg-black"></div>
+                                <button @click="stopQrScanner()" type="button" 
+                                        class="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-xs rounded-xl transition-all">
+                                    <i class="fa-solid fa-camera-slash mr-1"></i> Tắt Camera Quét QR
+                                </button>
+                            </div>
                         </div>
+
+                        <div class="text-[11px] text-slate-500 text-center font-medium">— Hoặc nhập thủ công mã phòng &amp; mật khẩu —</div>
+
+                        <!-- Ô nhập Mã phòng + Mật khẩu ghép đôi -->
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Mã Phòng</label>
+                                <input type="text" x-model="syncState.inputCode" @keydown.enter="joinLiveSyncRoom()" 
+                                       placeholder="VD: THI-4829" 
+                                       class="w-full text-xs font-mono font-bold uppercase p-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Mật Khẩu / PIN</label>
+                                <input type="password" x-model="syncState.inputPassword" @keydown.enter="joinLiveSyncRoom()" 
+                                       placeholder="Nếu có khóa..." 
+                                       class="w-full text-xs font-mono font-bold p-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+
+                        <!-- Thông báo lỗi sai mật khẩu / mã phòng -->
+                        <div x-show="syncState.authError" class="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-[11px] font-bold text-rose-600 flex items-center space-x-1.5">
+                            <i class="fa-solid fa-circle-exclamation shrink-0"></i>
+                            <span x-text="syncState.authError"></span>
+                        </div>
+
+                        <button @click="joinLiveSyncRoom()" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center space-x-1.5">
+                            <i class="fa-solid fa-right-to-bracket"></i>
+                            <span>Kết Nối Phòng Thi</span>
+                        </button>
                     </div>
                 </div>
             </template>
@@ -173,7 +242,7 @@
             <template x-if="syncState.status === 'connecting'">
                 <div class="py-8 text-center space-y-3">
                     <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-600"></i>
-                    <p class="text-xs font-bold text-slate-700" x-text="`Đang thiết lập kênh kết nối phòng ${syncState.roomCode}...`"></p>
+                    <p class="text-xs font-bold text-slate-700" x-text="`Đang xác thực & kết nối phòng ${syncState.roomCode}...`"></p>
                 </div>
             </template>
 
@@ -200,22 +269,42 @@
                             <span x-text="syncState.role === 'host' ? 'ĐANG PHÁT TRỰC TIẾP (HOST)' : 'ĐÃ KẾT NỐI ĐỒNG BỘ (GUEST)'"></span>
                         </div>
 
-                        <div>
+                        <div class="grid grid-cols-1 gap-1">
                             <div class="text-[11px] text-slate-500 font-semibold">Mã Phòng Thi:</div>
-                            <div class="flex items-center justify-center space-x-2 mt-0.5">
+                            <div class="flex items-center justify-center space-x-2">
                                 <span class="text-2xl font-black font-mono tracking-wider text-slate-900" x-text="syncState.roomCode"></span>
                                 <button @click="copySyncCode()" title="Sao chép mã phòng" class="p-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-600 text-xs">
                                     <i class="fa-regular fa-copy"></i>
                                 </button>
+                            </div>
+
+                            <!-- Hiển thị trạng thái bảo mật mật khẩu -->
+                            <div class="pt-1">
+                                <template x-if="syncState.role === 'host' && syncState.hostPassword">
+                                    <span class="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-amber-100 text-amber-900 rounded-lg text-xs font-mono font-bold">
+                                        <i class="fa-solid fa-lock text-amber-600"></i>
+                                        <span>Mã ghép đôi:</span>
+                                        <span x-text="syncState.showPassword ? syncState.hostPassword : '••••••'"></span>
+                                        <button type="button" @click="syncState.showPassword = !syncState.showPassword" class="text-amber-700 hover:text-amber-950 ml-1">
+                                            <i class="fa-solid" :class="syncState.showPassword ? 'fa-eye-slash' : 'fa-eye'"></i>
+                                        </button>
+                                    </span>
+                                </template>
+                                <template x-if="syncState.role === 'host' && !syncState.hostPassword">
+                                    <span class="inline-flex items-center space-x-1 px-2.5 py-0.5 bg-slate-200/70 text-slate-600 rounded-lg text-[11px] font-semibold">
+                                        <i class="fa-solid fa-lock-open"></i>
+                                        <span>Phòng mở tự do (Không đặt mật khẩu)</span>
+                                    </span>
+                                </template>
                             </div>
                         </div>
 
                         <!-- Khung hiển thị mã QR (Chỉ hiện trên Host) -->
                         <div x-show="syncState.role === 'host'" class="flex flex-col items-center pt-1">
                             <div id="p2p-qrcode-box" class="p-2.5 bg-white rounded-xl border border-slate-200 shadow-sm"></div>
-                            <p class="text-[11px] text-slate-500 mt-2">Dùng Camera điện thoại quét mã QR để mở ngay trên thiết bị khác</p>
+                            <p class="text-[11px] text-slate-500 mt-2">Quét mã QR trên thiết bị phụ để tự động điền mã phòng &amp; mật khẩu</p>
                             <div class="mt-2 text-xs font-bold text-emerald-700">
-                                <i class="fa-solid fa-users mr-1"></i> Thiết bị đang kết nối: <span x-text="syncState.peerCount">0</span>
+                                <i class="fa-solid fa-users mr-1"></i> Thiết bị đã xác thực: <span x-text="syncState.peerCount">0</span>
                             </div>
                         </div>
                     </div>
