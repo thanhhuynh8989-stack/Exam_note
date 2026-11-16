@@ -345,15 +345,17 @@ function createExamAppState() {
 
         // --- Student & Grading actions ---
         openGradingModal(st) {
-            studentModule.openGradingModal(this, st);
-            if (this.activeStudent) {
-                if (!Array.isArray(this.activeStudent.scores)) {
-                    this.activeStudent.scores = [];
-                }
-                while (this.activeStudent.scores.length < this.config.sections.length) {
-                    this.activeStudent.scores.push(0);
-                }
+            if (!st) return;
+            const clone = JSON.parse(JSON.stringify(st));
+            if (!Array.isArray(clone.scores)) {
+                clone.scores = [];
             }
+            while (clone.scores.length < this.config.sections.length) {
+                clone.scores.push(0);
+            }
+            this.calculateTotalScore(clone);
+            this.activeStudent = clone;
+            this.showGradingModal = true;
         },
         isGradingScoreInvalid(idx) {
             if (!this.activeStudent || !Array.isArray(this.activeStudent.scores)) return false;
@@ -436,24 +438,26 @@ function createExamAppState() {
         },
 
         saveGradingModal() {
-            if (this.hasGradingError()) {
-                this.triggerToast("Điểm nhập phải nằm trong khoảng từ 0 đến điểm tối đa của phần thi!", "error");
-                return;
-            }
-            const target = this.students.find(s => s.id === this.targetStudentId || s.id === (this.activeStudent && this.activeStudent.id));
-            if (target) {
-                target.scores = [...this.activeStudent.scores];
-                target.totalScore = this.activeStudent.totalScore;
-                target.updatedAt = Date.now();
+            if (!this.activeStudent) return;
+            this.calculateTotalScore(this.activeStudent);
 
-                const breakdown = this.config.sections
-                    .map((sec, idx) => `${sec.title || 'Phần ' + (idx + 1)}: ${target.scores[idx] ?? 0}`)
-                    .join(', ');
-                this.recordAuditLog(`Chấm điểm ${target.hoLot} ${target.ten} (${target.mssv}): [${breakdown}] → Tổng: ${target.totalScore}đ`);
-                this.triggerToast("Đã lưu bảng điểm thành công!", "success");
+            const targetIdx = this.students.findIndex(s =>
+                (s.id && s.id === this.activeStudent.id) ||
+                (s.mssv && String(s.mssv).trim() === String(this.activeStudent.mssv).trim())
+            );
+
+            if (targetIdx !== -1) {
+                this.students[targetIdx] = {
+                    ...this.students[targetIdx],
+                    scores: [...this.activeStudent.scores],
+                    totalScore: this.activeStudent.totalScore
+                };
             }
+
             this.showGradingModal = false;
             this.activeStudent = null;
+            this.saveToLocalStorage();
+            this.triggerToast("Đã lưu điểm thí sinh!", "success");
         },
 
         // --- Config & Print actions ---
