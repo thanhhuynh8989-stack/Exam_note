@@ -7,6 +7,7 @@ import { printModule } from './js/print.module.js';
 import { sessionModule } from './js/session.module.js';
 import { syncBridgeModule } from './js/sync-bridge.module.js';
 import { scoreImportModule } from './js/score-import.module.js';
+import { tipsModule } from './js/tips.module.js';
 
 function createExamAppState() {
     return {
@@ -24,6 +25,11 @@ function createExamAppState() {
         newLogText: '',
         toasts: [],
         confirmModal: { show: false, title: '', message: '', onConfirm: null },
+        tipsState: {
+            showModal: false,
+            selectedKey: 'timer',
+            bannerExpanded: false
+        },
 
         // Trạng thái cổng Đồng bộ trực tiếp P2P
         syncState: {
@@ -128,6 +134,10 @@ function createExamAppState() {
             if (!this.isZaloBrowser) {
                 syncBridgeModule.init(this);
             }
+
+            try {
+                this.tipsState.bannerExpanded = localStorage.getItem('SGS_TIPS_BANNER_EXPANDED') === 'true';
+            } catch (_) {}
         },
 
         // --- Nhận diện thiết bị & Ghi nhật ký kiểm toán ---
@@ -321,6 +331,30 @@ function createExamAppState() {
         toggleFullscreen() {
             if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
             else if (document.exitFullscreen) document.exitFullscreen();
+        },
+
+        // --- Hướng dẫn nhanh theo màn hình (Tips) ---
+        openTipsModal() {
+            this.tipsState.selectedKey = tipsModule.resolveTabKey(this.activeTab);
+            this.tipsState.showModal = true;
+        },
+        closeTipsModal() {
+            this.tipsState.showModal = false;
+        },
+        toggleTipsBanner() {
+            this.tipsState.bannerExpanded = !this.tipsState.bannerExpanded;
+            try {
+                localStorage.setItem('SGS_TIPS_BANNER_EXPANDED', String(this.tipsState.bannerExpanded));
+            } catch (_) {}
+        },
+        getCurrentTabTips() {
+            return tipsModule.getTipsForTab(this.activeTab);
+        },
+        getActiveTipsSection() {
+            return tipsModule.getTipsForTab(this.tipsState.selectedKey || this.activeTab);
+        },
+        getAllTipsSections() {
+            return tipsModule.getAllTipSections();
         },
 
         // --- Chế độ Toàn màn hình Danh sách điểm ---
