@@ -295,11 +295,27 @@ export class P2PSyncManager {
 
             // BƯỚC 3: Hợp nhất dữ liệu từ Guest hợp lệ & phát tán lại
             if (data.type === 'SYNC_STATE') {
+                const isInitial = !!data.isInitialSync;
                 this.onStateReceived(data.payload, {
                     senderRole: data.senderRole || 'guest',
-                    isInitialSync: !!data.isInitialSync
+                    isInitialSync: isInitial,
+                    isReconnect: !!data.isReconnect
                 });
-                this.broadcast(this.getAppState(), guestDeviceId, false);
+
+                const mergedSnapshot = this.getAppState();
+                // Phát tán cho tất cả thiết bị khác
+                this.broadcast(mergedSnapshot, guestDeviceId, false);
+
+                // Nếu là đồng bộ ban đầu/khôi phục mạng, gửi lại bản đã hợp nhất cho chính Guest này
+                if (isInitial) {
+                    this.client.publish(topics.client(guestDeviceId), JSON.stringify({
+                        type: 'SYNC_STATE',
+                        payload: mergedSnapshot,
+                        senderRole: 'host',
+                        isInitialSync: false,
+                        timestamp: Date.now()
+                    }), { qos: 1 });
+                }
             }
         });
 
@@ -381,15 +397,18 @@ export class P2PSyncManager {
     _sendApprovalAndState(guestDeviceId, token) {
         if (!this.client || !this.client.connected || !this.roomCode) return;
         const topics = this._topics(this.roomCode);
+        const currentState = this.getAppState();
 
+        // Đính kèm luôn dữ liệu hiện tại trong AUTH_ACCEPTED để Guest nhận ngay lập tức
         this.client.publish(topics.client(guestDeviceId), JSON.stringify({
             type: 'AUTH_ACCEPTED',
-            sessionToken: token
+            sessionToken: token,
+            initialState: currentState
         }), { qos: 1 });
 
         this.client.publish(topics.client(guestDeviceId), JSON.stringify({
             type: 'SYNC_STATE',
-            payload: this.getAppState(),
+            payload: currentState,
             senderRole: 'host',
             isInitialSync: true,
             timestamp: Date.now()
@@ -441,7 +460,6 @@ export class P2PSyncManager {
 
         this._emitStatus(isReconnect ? 'reconnecting' : 'connecting');
 
-        // Timeout 12s nếu chưa kết nối được tới máy chủ mạng
         this._clearAuthTimeout();
         this.authTimeoutTimer = setTimeout(() => {
             if (!this.isAuthenticated && !this.isManualDisconnect) {
@@ -457,7 +475,7 @@ export class P2PSyncManager {
                     this._emitStatus('disconnected', `Hết thời gian chờ phản hồi từ phòng "${cleanCode}". Hãy kiểm tra Thiết Bị Chính đang bật chia sẻ.`);
                 }
             }
-        }, savedToken ? 12000 : 90000); // Nếu đang chờ Host bấm Đồng ý thì giữ tối đa 90 giây
+        }, savedToken ? 12000 : 90000);
 
         this.client = window.mqtt.connect(brokerUrl, {
             clientId,
@@ -471,16 +489,19 @@ export class P2PSyncManager {
             this.client.subscribe([myClientTopic, topics.broadcast], { qos: 1 }, (err) => {
                 if (err) return;
 
+                // Luôn lấy this.sessionToken mới nhất (tránh dùng closure savedToken cũ khi auto-reconnect)
+                const activeToken = this.sessionToken || savedToken;
+                const reconnectingWithToken = Boolean(activeToken);
+
                 this.client.publish(topics.inbox, JSON.stringify({
                     type: 'JOIN_REQUEST',
                     deviceId: this.deviceId,
                     deviceName: finalDeviceName,
-                    sessionToken: savedToken,
-                    isReconnect
+                    sessionToken: activeToken,
+                    isReconnect: isReconnect || reconnectingWithToken
                 }), { qos: 1 });
 
-                // Nếu chưa có token duyệt sẵn -> chuyển sang trạng thái chờ Host bấm Đồng ý
-                if (!savedToken) {
+                if (!activeToken) {
                     this._emitStatus('waiting_approval');
                 }
             });
@@ -515,18 +536,28 @@ export class P2PSyncManager {
                 }
 
                 if (data.type === 'AUTH_ACCEPTED') {
+                    const wasReconnect = Boolean(this.sessionToken) || isReconnect;
                     this._clearAuthTimeout();
                     this.reconnectAttempts = 0;
                     this.isAuthenticated = true;
-                    this.sessionToken = data.sessionToken || savedToken;
+                    this.sessionToken = data.sessionToken || this.sessionToken || savedToken;
                     this._saveSession(finalDeviceName);
 
                     this._clearReconnectTimer();
                     this._startHeartbeat();
                     this._emitStatus('connected');
 
+                    // Hợp nhất ngay dữ liệu Host gửi kèm trong gói duyệt
+                    if (data.initialState) {
+                        this.onStateReceived(data.initialState, {
+                            senderRole: 'host',
+                            isInitialSync: true,
+                            isReconnect: wasReconnect
+                        });
+                    }
+
                     this.onToast(
-                        isReconnect ? `Đã tự động kết nối lại phòng ${cleanCode}` : `Thiết Bị Chính đã đồng ý! Đang đồng bộ phòng ${cleanCode}`,
+                        wasReconnect ? `Đã tự động kết nối lại phòng ${cleanCode}` : `Thiết Bị Chính đã đồng ý! Đang đồng bộ phòng ${cleanCode}`,
                         'success'
                     );
 
@@ -538,6 +569,7 @@ export class P2PSyncManager {
                         payload: this.getAppState(),
                         senderRole: 'guest',
                         isInitialSync: true,
+                        isReconnect: wasReconnect,
                         timestamp: Date.now()
                     }), { qos: 1 });
                     return;
@@ -546,7 +578,8 @@ export class P2PSyncManager {
                 if (data.type === 'SYNC_STATE' && this.isAuthenticated) {
                     this.onStateReceived(data.payload, {
                         senderRole: data.senderRole || 'host',
-                        isInitialSync: !!data.isInitialSync
+                        isInitialSync: !!data.isInitialSync,
+                        isReconnect: !!data.isReconnect
                     });
                 }
                 return;
@@ -557,7 +590,8 @@ export class P2PSyncManager {
                 if (data.type === 'SYNC_STATE') {
                     this.onStateReceived(data.payload, {
                         senderRole: data.senderRole || 'host',
-                        isInitialSync: !!data.isInitialSync
+                        isInitialSync: !!data.isInitialSync,
+                        isReconnect: !!data.isReconnect
                     });
                 }
             }
