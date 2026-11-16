@@ -201,7 +201,9 @@ document.addEventListener('alpine:init', () => {
         joinLiveSyncRoom() {
             if (!this._syncManager) return;
             this.syncState.authError = '';
-            this._syncManager.joinRoom(this.syncState.inputCode, this.syncState.inputPin, false);
+            const code = (this.syncState.inputCode || '').trim().toUpperCase();
+            const pin = String(this.syncState.inputPin || '').replace(/\s+/g, '');
+            this._syncManager.joinRoom(code, pin, false);
         },
 
         async startQrScanner() {
@@ -347,12 +349,7 @@ document.addEventListener('alpine:init', () => {
                 this.logs = combined;
             }
         },
-
-        // Các hàm điều khiển nút bấm trong Modal Đồng bộ
-        startLiveSyncHost() { this._syncManager?.startHost(); },
-        joinLiveSyncRoom() { this._syncManager?.joinRoom(this.syncState.inputCode); },
-        disconnectLiveSync() { this._syncManager?.disconnect(true); },
-
+   
         broadcastSyncState() {
             if (!this._isApplyingRemote && this._syncManager) {
                 this._syncManager.broadcast(this._syncManager.getAppState());
